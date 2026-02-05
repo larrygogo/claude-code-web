@@ -7,14 +7,15 @@ import {
   UserLoginInput,
   AuthTokens,
   AuthResponse,
-  JwtPayload,
   UserSettings,
   defaultUserSettings,
+  UserRole,
+  UserStatus,
 } from '@claude-web/shared';
 import { getDatabase } from '../storage/Database.js';
 import { fileStorage } from '../storage/FileStorage.js';
 import { config } from '../config.js';
-import { ConflictError, UnauthorizedError, NotFoundError } from '../middleware/error.js';
+import { ConflictError, UnauthorizedError, NotFoundError, ForbiddenError } from '../middleware/error.js';
 
 const SALT_ROUNDS = 10;
 const REFRESH_TOKEN_EXPIRY_DAYS = 7;
@@ -66,6 +67,11 @@ export class AuthService {
 
     if (!isPasswordValid) {
       throw new UnauthorizedError('Invalid email or password');
+    }
+
+    // 检查用户状态
+    if (user.status === 'disabled') {
+      throw new ForbiddenError('Account is disabled');
     }
 
     const tokens = await this.generateTokens(user);
@@ -149,16 +155,17 @@ export class AuthService {
     return newSettings;
   }
 
-  private async generateTokens(user: { id: string; email: string }): Promise<AuthTokens> {
+  private async generateTokens(user: { id: string; email: string; role?: string }): Promise<AuthTokens> {
     const db = getDatabase();
 
-    const payload: JwtPayload = {
+    const payload = {
       userId: user.id,
       email: user.email,
+      role: (user.role as UserRole) || 'user',
     };
 
     const accessToken = jwt.sign(payload, config.jwt.secret, {
-      expiresIn: config.jwt.accessTokenExpiry,
+      expiresIn: config.jwt.accessTokenExpiry as jwt.SignOptions['expiresIn'],
     });
 
     const refreshToken = uuidv4();
@@ -192,6 +199,8 @@ export class AuthService {
     id: string;
     email: string;
     username: string;
+    role?: string;
+    status?: string;
     settings: string;
     createdAt: Date;
     updatedAt: Date;
@@ -200,6 +209,8 @@ export class AuthService {
       id: user.id,
       email: user.email,
       username: user.username,
+      role: (user.role as UserRole) || 'user',
+      status: (user.status as UserStatus) || 'active',
       settings: this.parseSettings(user.settings),
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,

@@ -12,6 +12,8 @@ model User {
   email        String    @unique
   username     String
   passwordHash String
+  role         String    @default("user")   // user | admin
+  status       String    @default("active") // active | disabled
   settings     String    @default("{\"theme\":\"system\"}")
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -90,4 +92,21 @@ model RefreshToken {
   @@index([userId])
   @@index([token])
   @@map("refresh_tokens")
+}
+
+model ModelConfig {
+  id          String   @id @default(uuid())
+  name        String   @unique              // 显示名称
+  provider    String                        // anthropic | openai | custom
+  modelId     String                        // 实际模型 ID
+  apiEndpoint String                        // API 端点
+  apiKey      String                        // 加密存储
+  isEnabled   Boolean  @default(true)
+  isDefault   Boolean  @default(false)
+  priority    Int      @default(0)
+  settings    String   @default("{}")       // JSON 格式的额外设置
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("model_configs")
 }
