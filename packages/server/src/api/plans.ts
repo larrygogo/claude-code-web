@@ -1,10 +1,10 @@
-import { Router } from 'express';
+import { Router, type Router as RouterType } from 'express';
 import { z } from 'zod';
 import { ApiResponse, Plan, PlanListItem } from '@claude-web/shared';
 import { planService } from '../services/PlanService.js';
 import { authMiddleware, requireUser } from '../middleware/auth.js';
 
-const router = Router();
+const router: RouterType = Router();
 
 const createPlanSchema = z.object({
   sessionId: z.string().uuid(),

@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, type Router as RouterType } from 'express';
 import { z } from 'zod';
 import { authMiddleware, requireUser } from '../middleware/auth.js';
 import { adminMiddleware } from '../middleware/admin.js';
@@ -6,7 +6,7 @@ import { asyncHandler } from '../middleware/error.js';
 import { adminService } from '../services/AdminService.js';
 import { ApiResponse, UserListResponse, UserListItem, ModelConfigListItem, DashboardStats } from '@claude-web/shared';
 
-const router = Router();
+const router: RouterType = Router();
 
 // 所有 admin 路由都需要认证和管理员权限
 router.use(authMiddleware);

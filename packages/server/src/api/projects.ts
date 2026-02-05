@@ -1,11 +1,11 @@
-import { Router } from 'express';
+import { Router, type Router as RouterType } from 'express';
 import { z } from 'zod';
 import { projectService } from '../services/ProjectService.js';
 import { authMiddleware, requireUser } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/error.js';
 import { config } from '../config.js';
 
-const router = Router();
+const router: RouterType = Router();
 
 const createProjectSchema = z.object({
   name: z.string().min(1, 'Name is required'),

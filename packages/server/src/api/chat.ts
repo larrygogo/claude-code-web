@@ -1,10 +1,10 @@
-import { Router, Response } from 'express';
+import { Router, Response, type Router as RouterType } from 'express';
 import { z } from 'zod';
 import { ApiResponse } from '@claude-web/shared';
 import { agentService } from '../services/AgentService.js';
 import { authMiddleware, requireUser } from '../middleware/auth.js';
 
-const router = Router();
+const router: RouterType = Router();
 
 const attachmentSchema = z.object({
   name: z.string(),
