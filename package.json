@@ -15,7 +15,8 @@
     "db:push": "pnpm --filter server db:push",
     "test": "node tests/run-all-tests.mjs",
     "test:api": "node tests/api-test.mjs",
-    "test:e2e": "node tests/e2e-test.mjs"
+    "test:e2e": "node tests/e2e-test.mjs",
+    "test:browser": "node tests/e2e-browser-test.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
