@@ -8,6 +8,7 @@ import {
 } from '@claude-web/shared';
 import { sessionService } from '../services/SessionService.js';
 import { authMiddleware, requireUser } from '../middleware/auth.js';
+import { asyncHandler } from '../middleware/error.js';
 
 const router = Router();
 
@@ -29,51 +30,51 @@ const importSessionSchema = z.object({
   title: z.string().optional(),
 });
 
-router.get('/', authMiddleware, async (req, res: { json: (data: ApiResponse<SessionListItem[]>) => void }) => {
+router.get('/', authMiddleware, asyncHandler(async (req, res) => {
   const { userId } = requireUser(req);
   const projectId = req.query.projectId as string | undefined;
   const sessions = await sessionService.listSessions(userId, projectId);
   res.json({ success: true, data: sessions });
-});
+}));
 
-router.post('/', authMiddleware, async (req, res: { json: (data: ApiResponse<Session>) => void }) => {
+router.post('/', authMiddleware, asyncHandler(async (req, res) => {
   const { userId } = requireUser(req);
   const input = createSessionSchema.parse(req.body);
   const session = await sessionService.createSession(userId, input);
   res.json({ success: true, data: session });
-});
+}));
 
-router.get('/:id', authMiddleware, async (req, res: { json: (data: ApiResponse<SessionWithMessages>) => void }) => {
+router.get('/:id', authMiddleware, asyncHandler(async (req, res) => {
   const { userId } = requireUser(req);
   const session = await sessionService.getSession(userId, req.params.id);
   res.json({ success: true, data: session });
-});
+}));
 
-router.patch('/:id', authMiddleware, async (req, res: { json: (data: ApiResponse<Session>) => void }) => {
+router.patch('/:id', authMiddleware, asyncHandler(async (req, res) => {
   const { userId } = requireUser(req);
   const { title } = updateSessionSchema.parse(req.body);
   const session = await sessionService.updateSessionTitle(userId, req.params.id, title);
   res.json({ success: true, data: session });
-});
+}));
 
-router.delete('/:id', authMiddleware, async (req, res: { json: (data: ApiResponse) => void }) => {
+router.delete('/:id', authMiddleware, asyncHandler(async (req, res) => {
   const { userId } = requireUser(req);
   await sessionService.deleteSession(userId, req.params.id);
   res.json({ success: true });
-});
+}));
 
-router.post('/:id/fork', authMiddleware, async (req, res: { json: (data: ApiResponse<Session>) => void }) => {
+router.post('/:id/fork', authMiddleware, asyncHandler(async (req, res) => {
   const { userId } = requireUser(req);
   const { messageIndex } = forkSessionSchema.parse(req.body);
   const session = await sessionService.forkSession(userId, req.params.id, messageIndex);
   res.json({ success: true, data: session });
-});
+}));
 
-router.post('/import', authMiddleware, async (req, res: { json: (data: ApiResponse<Session>) => void }) => {
+router.post('/import', authMiddleware, asyncHandler(async (req, res) => {
   const { userId } = requireUser(req);
   const { filePath, title } = importSessionSchema.parse(req.body);
   const session = await sessionService.importCliSession(userId, filePath, title);
   res.json({ success: true, data: session });
-});
+}));
 
 export default router;

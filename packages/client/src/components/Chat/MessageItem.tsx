@@ -1,15 +1,10 @@
-'use client';
-
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Message, ContentBlock, ToolUse, ToolResult } from '@claude-web/shared';
 import { cn } from '@/lib/utils';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
-  User,
-  Bot,
   ChevronDown,
   ChevronRight,
   FileText,
@@ -20,13 +15,23 @@ import {
   Code,
   CheckCircle,
   XCircle,
+  Copy,
+  Check,
+  Sparkles,
+  Loader2,
 } from 'lucide-react';
+
+interface StreamingBlock {
+  type: 'text' | 'thinking' | 'tool_use' | 'tool_result';
+  content?: string;
+  toolUse?: { id: string; name: string; input: Record<string, unknown> };
+  toolResult?: { toolUseId: string; content: string; isError?: boolean };
+}
 
 interface MessageItemProps {
   message: Message;
   isStreaming?: boolean;
-  streamingText?: string;
-  streamingThinking?: string;
+  streamingBlocks?: StreamingBlock[];
 }
 
 const toolIcons: Record<string, React.ElementType> = {
@@ -44,33 +49,38 @@ const toolIcons: Record<string, React.ElementType> = {
 export function MessageItem({
   message,
   isStreaming,
-  streamingText,
-  streamingThinking,
+  streamingBlocks,
 }: MessageItemProps) {
   const isUser = message.role === 'user';
 
   const content = isStreaming
-    ? buildStreamingContent(message.content, streamingText, streamingThinking)
+    ? buildStreamingContent(streamingBlocks)
     : message.content;
 
   return (
-    <div
-      className={cn(
-        'flex gap-3 p-4',
-        isUser ? 'bg-background' : 'bg-muted/30'
-      )}
-    >
-      <Avatar className="h-8 w-8 shrink-0">
-        <AvatarFallback className={cn(isUser ? 'bg-primary' : 'bg-orange-500')}>
-          {isUser ? <User className="h-4 w-4 text-primary-foreground" /> : <Bot className="h-4 w-4 text-white" />}
-        </AvatarFallback>
-      </Avatar>
+    <div className={cn('py-6 message-fade-in overflow-hidden')}>
+      <div className="max-w-3xl mx-auto px-4 overflow-hidden">
+        {/* Role indicator */}
+        <div className="flex items-center gap-2 mb-3">
+          {isUser ? (
+            <span className="text-sm font-medium text-muted-foreground">你</span>
+          ) : (
+            <>
+              <span className="w-2 h-2 rounded-full bg-orange-500" />
+              <span className="text-sm font-medium">Claude</span>
+            </>
+          )}
+        </div>
 
-      <div className="flex-1 space-y-2 overflow-hidden">
-        <div className="text-sm font-medium">{isUser ? '你' : 'Claude'}</div>
-        <div className="space-y-3">
+        {/* Content */}
+        <div className="space-y-3 overflow-hidden">
           {content.map((block, index) => (
-            <ContentBlockRenderer key={index} block={block} isStreaming={isStreaming && index === content.length - 1} />
+            <ContentBlockRenderer
+              key={index}
+              block={block}
+              isStreaming={isStreaming && index === content.length - 1}
+              allBlocks={content}
+            />
           ))}
         </div>
       </div>
@@ -79,41 +89,56 @@ export function MessageItem({
 }
 
 function buildStreamingContent(
-  existingContent: ContentBlock[],
-  streamingText?: string,
-  streamingThinking?: string
+  streamingBlocks?: StreamingBlock[]
 ): ContentBlock[] {
-  const content = [...existingContent];
-
-  if (streamingThinking) {
-    const lastThinking = content.findIndex(b => b.type === 'thinking');
-    if (lastThinking >= 0) {
-      content[lastThinking] = { type: 'thinking', content: streamingThinking };
-    } else {
-      content.push({ type: 'thinking', content: streamingThinking });
-    }
+  if (!streamingBlocks || streamingBlocks.length === 0) {
+    return [];
   }
 
-  if (streamingText) {
-    const lastText = content.findIndex(b => b.type === 'text');
-    if (lastText >= 0) {
-      content[lastText] = { type: 'text', content: streamingText };
-    } else {
-      content.push({ type: 'text', content: streamingText });
+  // 直接将 StreamingBlock 转换为 ContentBlock，保持原有顺序
+  return streamingBlocks.map((block): ContentBlock => {
+    switch (block.type) {
+      case 'text':
+        return { type: 'text', content: block.content || '' };
+      case 'thinking':
+        return { type: 'thinking', content: block.content || '' };
+      case 'tool_use':
+        return {
+          type: 'tool_use',
+          toolUse: block.toolUse || { id: '', name: '', input: {} },
+        };
+      case 'tool_result':
+        return {
+          type: 'tool_result',
+          toolResult: block.toolResult || { toolUseId: '', content: '', isError: false },
+        };
+      default:
+        return { type: 'text', content: '' };
     }
-  }
-
-  return content;
+  });
 }
 
-function ContentBlockRenderer({ block, isStreaming }: { block: ContentBlock; isStreaming?: boolean }) {
+function ContentBlockRenderer({
+  block,
+  isStreaming,
+  allBlocks,
+}: {
+  block: ContentBlock;
+  isStreaming?: boolean;
+  allBlocks?: ContentBlock[];
+}) {
   switch (block.type) {
     case 'text':
       return <TextBlock content={block.content} isStreaming={isStreaming} />;
     case 'thinking':
       return <ThinkingBlock content={block.content} />;
-    case 'tool_use':
-      return <ToolUseBlock toolUse={block.toolUse} />;
+    case 'tool_use': {
+      // Check if this tool use has a corresponding result
+      const hasResult = allBlocks?.some(
+        b => b.type === 'tool_result' && b.toolResult.toolUseId === block.toolUse.id
+      );
+      return <ToolUseBlock toolUse={block.toolUse} isExecuting={!hasResult} />;
+    }
     case 'tool_result':
       return <ToolResultBlock toolResult={block.toolResult} />;
     default:
@@ -121,9 +146,72 @@ function ContentBlockRenderer({ block, isStreaming }: { block: ContentBlock; isS
   }
 }
 
-function TextBlock({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
+function CodeBlock({
+  language,
+  children,
+}: {
+  language: string;
+  children: string;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    await navigator.clipboard.writeText(children);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [children]);
+
   return (
-    <div className={cn('prose prose-sm dark:prose-invert max-w-none', isStreaming && 'typing-cursor')}>
+    <div className="code-block-wrapper">
+      <div className="code-block-header">
+        <span className="language-label">{language}</span>
+        <button
+          onClick={handleCopy}
+          className={cn('copy-button', copied && 'copied')}
+        >
+          {copied ? (
+            <>
+              <Check className="h-3 w-3" />
+              <span>已复制</span>
+            </>
+          ) : (
+            <>
+              <Copy className="h-3 w-3" />
+              <span>复制</span>
+            </>
+          )}
+        </button>
+      </div>
+      <SyntaxHighlighter
+        style={oneDark}
+        language={language}
+        PreTag="div"
+        customStyle={{
+          margin: 0,
+          borderRadius: 0,
+          fontSize: '0.875rem',
+        }}
+      >
+        {children}
+      </SyntaxHighlighter>
+    </div>
+  );
+}
+
+function TextBlock({
+  content,
+  isStreaming,
+}: {
+  content: string;
+  isStreaming?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        'prose prose-sm dark:prose-invert max-w-none prose-chat',
+        isStreaming && 'typing-cursor'
+      )}
+    >
       <ReactMarkdown
         components={{
           code({ className, children, ...props }) {
@@ -132,21 +220,19 @@ function TextBlock({ content, isStreaming }: { content: string; isStreaming?: bo
 
             if (isInline) {
               return (
-                <code className="bg-muted px-1.5 py-0.5 rounded text-sm" {...props}>
+                <code
+                  className="bg-muted px-1.5 py-0.5 rounded text-sm font-mono"
+                  {...props}
+                >
                   {children}
                 </code>
               );
             }
 
             return (
-              <SyntaxHighlighter
-                style={oneDark}
-                language={match[1]}
-                PreTag="div"
-                className="rounded-md text-sm"
-              >
+              <CodeBlock language={match[1]}>
                 {String(children).replace(/\n$/, '')}
-              </SyntaxHighlighter>
+              </CodeBlock>
             );
           },
         }}
@@ -161,16 +247,21 @@ function ThinkingBlock({ content }: { content: string }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
-    <div className="border rounded-md bg-muted/50">
+    <div className="thinking-block">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center gap-2 w-full p-2 text-sm text-muted-foreground hover:text-foreground"
+        className="thinking-block-header"
       >
-        {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        <span>思考过程</span>
+        <Sparkles className="h-4 w-4" />
+        <span>思考中...</span>
+        {isExpanded ? (
+          <ChevronDown className="h-4 w-4" />
+        ) : (
+          <ChevronRight className="h-4 w-4" />
+        )}
       </button>
       {isExpanded && (
-        <div className="px-4 pb-3 text-sm text-muted-foreground whitespace-pre-wrap">
+        <div className="thinking-block-content whitespace-pre-wrap">
           {content}
         </div>
       )}
@@ -178,26 +269,42 @@ function ThinkingBlock({ content }: { content: string }) {
   );
 }
 
-function ToolUseBlock({ toolUse }: { toolUse: ToolUse }) {
+function ToolUseBlock({ toolUse, isExecuting }: { toolUse: ToolUse; isExecuting?: boolean }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const Icon = toolIcons[toolUse.name] || Code;
 
   return (
-    <div className="border rounded-md">
+    <div className="flex flex-col max-w-full overflow-hidden">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center gap-2 w-full p-2 text-sm hover:bg-muted/50"
+        className={cn(
+          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors max-w-full",
+          isExecuting
+            ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+            : "bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20"
+        )}
       >
-        {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        <Icon className="h-4 w-4 text-blue-500" />
-        <span className="font-medium">{toolUse.name}</span>
-        <span className="text-muted-foreground truncate">
+        {isExecuting ? (
+          <Loader2 className="h-3 w-3 flex-shrink-0 animate-spin" />
+        ) : (
+          <Icon className="h-3 w-3 flex-shrink-0" />
+        )}
+        <span className="flex-shrink-0">{toolUse.name}</span>
+        <span className={cn(
+          "truncate min-w-0",
+          isExecuting ? "text-amber-500/70" : "text-blue-500/70"
+        )}>
           {getToolSummary(toolUse)}
         </span>
+        {isExpanded ? (
+          <ChevronDown className="h-3 w-3 flex-shrink-0" />
+        ) : (
+          <ChevronRight className="h-3 w-3 flex-shrink-0" />
+        )}
       </button>
       {isExpanded && (
-        <div className="px-4 pb-3">
-          <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">
+        <div className="mt-2 overflow-x-auto">
+          <pre className="text-xs bg-muted p-2 rounded whitespace-pre w-fit min-w-full">
             {JSON.stringify(toolUse.input, null, 2)}
           </pre>
         </div>
@@ -210,27 +317,36 @@ function ToolResultBlock({ toolResult }: { toolResult: ToolResult }) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
-    <div className={cn('border rounded-md', toolResult.isError && 'border-destructive/50')}>
+    <div className="flex flex-col max-w-full overflow-hidden">
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center gap-2 w-full p-2 text-sm hover:bg-muted/50"
-      >
-        {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        {toolResult.isError ? (
-          <XCircle className="h-4 w-4 text-destructive" />
-        ) : (
-          <CheckCircle className="h-4 w-4 text-green-500" />
+        className={cn(
+          'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors',
+          toolResult.isError
+            ? 'bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20'
+            : 'bg-green-500/10 text-green-600 dark:text-green-400 hover:bg-green-500/20'
         )}
-        <span className="text-muted-foreground">
-          {toolResult.isError ? '执行失败' : '执行成功'}
-        </span>
+      >
+        {toolResult.isError ? (
+          <XCircle className="h-3 w-3 flex-shrink-0" />
+        ) : (
+          <CheckCircle className="h-3 w-3 flex-shrink-0" />
+        )}
+        <span>{toolResult.isError ? '执行失败' : '执行成功'}</span>
+        {isExpanded ? (
+          <ChevronDown className="h-3 w-3 flex-shrink-0" />
+        ) : (
+          <ChevronRight className="h-3 w-3 flex-shrink-0" />
+        )}
       </button>
       {isExpanded && (
-        <div className="px-4 pb-3">
-          <pre className={cn(
-            'text-xs p-2 rounded overflow-x-auto max-h-60',
-            toolResult.isError ? 'bg-destructive/10' : 'bg-muted'
-          )}>
+        <div className="mt-2 overflow-x-auto">
+          <pre
+            className={cn(
+              'text-xs p-2 rounded max-h-60 whitespace-pre w-fit min-w-full',
+              toolResult.isError ? 'bg-destructive/10' : 'bg-muted'
+            )}
+          >
             {toolResult.content}
           </pre>
         </div>
@@ -244,16 +360,16 @@ function getToolSummary(toolUse: ToolUse): string {
 
   switch (toolUse.name) {
     case 'Read':
-      return input.file_path as string || '';
+      return (input.file_path as string) || '';
     case 'Write':
     case 'Edit':
-      return input.file_path as string || '';
+      return (input.file_path as string) || '';
     case 'Bash':
-      return (input.command as string || '').substring(0, 50);
+      return ((input.command as string) || '').substring(0, 50);
     case 'Glob':
-      return input.pattern as string || '';
+      return (input.pattern as string) || '';
     case 'Grep':
-      return input.pattern as string || '';
+      return (input.pattern as string) || '';
     default:
       return '';
   }

@@ -1,7 +1,5 @@
-'use client';
-
 import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { PlanListItem } from '@claude-web/shared';
 import { getPlans, updatePlan, executePlan } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -18,7 +16,7 @@ const statusConfig = {
 };
 
 export default function PlansPage() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const [plans, setPlans] = useState<PlanListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -144,7 +142,7 @@ export default function PlansPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => router.push(`/chat/${plan.sessionId}`)}
+                        onClick={() => navigate(`/chat/${plan.sessionId}`)}
                       >
                         查看会话
                       </Button>

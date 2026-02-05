@@ -14,6 +14,11 @@ async function main(): Promise<void> {
     console.log(`Environment: ${config.nodeEnv}`);
   });
 
+  // Increase timeout for SSE connections (10 minutes)
+  server.timeout = 600000;
+  server.keepAliveTimeout = 600000;
+  server.headersTimeout = 610000;
+
   const shutdown = async (signal: string) => {
     console.log(`\n${signal} received. Shutting down gracefully...`);
 

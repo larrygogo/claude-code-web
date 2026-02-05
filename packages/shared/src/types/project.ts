@@ -2,8 +2,10 @@ export interface Project {
   id: string;
   userId: string;
   name: string;
-  path: string;
-  pathHash: string;
+  path?: string;
+  pathHash?: string;
+  description?: string;
+  instructions?: string;
   claudeMdContent?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -11,13 +13,22 @@ export interface Project {
 
 export interface ProjectCreateInput {
   name: string;
-  path: string;
+  path?: string;
+  description?: string;
+  instructions?: string;
+}
+
+export interface ProjectUpdateInput {
+  name?: string;
+  description?: string;
+  instructions?: string;
 }
 
 export interface ProjectListItem {
   id: string;
   name: string;
-  path: string;
+  path?: string;
+  description?: string;
   sessionCount: number;
   lastAccessedAt: Date;
 }

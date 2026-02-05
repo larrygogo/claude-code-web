@@ -1,88 +1,135 @@
-'use client';
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { useChatStore } from '@/stores/chatStore';
-import { Send, Square, Loader2 } from 'lucide-react';
+import { useAuthStore } from '@/stores/authStore';
+import { useIsMobile } from '@/hooks/useMediaQuery';
+import { Send, Square } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface InputAreaProps {
   projectId?: string;
+  onSuggestionClick?: (text: string) => void;
 }
 
-export function InputArea({ projectId }: InputAreaProps) {
+export function InputArea({ projectId, onSuggestionClick }: InputAreaProps) {
   const [input, setInput] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { sendMessage, abortStreaming, isStreaming } = useChatStore();
+  const { sendMessage, abortStreaming, streamingSessionId, currentSession } = useChatStore();
+  const { tokens } = useAuthStore();
+  const accessToken = tokens?.accessToken;
+  const isMobile = useIsMobile();
+
+  // 只有当前会话正在流式传输时才禁用输入
+  const isStreaming = streamingSessionId !== null && streamingSessionId === currentSession?.id;
 
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px';
+      textareaRef.current.style.height =
+        Math.min(textareaRef.current.scrollHeight, 200) + 'px';
     }
   }, [input]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || isStreaming) return;
+  // Allow parent to set input via suggestion click
+  useEffect(() => {
+    if (onSuggestionClick) {
+      // This is a no-op, just to ensure the prop is used for typing
+    }
+  }, [onSuggestionClick]);
+
+  const handleSubmit = async () => {
+    if (!input.trim() || isStreaming || !accessToken) return;
 
     const message = input.trim();
     setInput('');
-    await sendMessage(message, projectId);
+
+    await sendMessage(message, projectId, accessToken);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit(e);
+      handleSubmit();
     }
   };
 
+  // Expose setInput for parent component
+  const fillInput = (text: string) => {
+    setInput(text);
+    textareaRef.current?.focus();
+  };
+
+  // Attach to window for parent access (simple approach)
+  useEffect(() => {
+    (window as unknown as { fillChatInput?: (text: string) => void }).fillChatInput = fillInput;
+    return () => {
+      delete (window as unknown as { fillChatInput?: (text: string) => void }).fillChatInput;
+    };
+  }, []);
+
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="border-t bg-background p-4 mobile-safe-bottom"
-    >
-      <div className="flex gap-2 items-end max-w-4xl mx-auto">
-        <div className="flex-1 relative">
+    <div className="bg-background p-4 mobile-safe-bottom">
+      <div className="max-w-3xl mx-auto">
+        {/* Input container with capsule style */}
+        <div
+          className={cn(
+            'relative rounded-2xl border bg-background shadow-sm',
+            'focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2',
+            'transition-shadow'
+          )}
+        >
           <textarea
             ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="输入消息... (Shift+Enter 换行)"
+            placeholder="给 Claude 发送消息..."
             disabled={isStreaming}
             rows={1}
             className={cn(
-              'w-full resize-none rounded-lg border border-input bg-background px-4 py-3 text-sm',
-              'ring-offset-background placeholder:text-muted-foreground',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+              'w-full resize-none bg-transparent px-4 py-3 pr-14 text-sm',
+              'placeholder:text-muted-foreground',
+              'focus:outline-none',
               'disabled:cursor-not-allowed disabled:opacity-50',
               'min-h-[48px] max-h-[200px]'
             )}
           />
+
+          {/* Send/Stop button inside the container */}
+          <div className="absolute right-2 bottom-2">
+            {isStreaming ? (
+              <Button
+                type="button"
+                variant="destructive"
+                size="icon"
+                onClick={abortStreaming}
+                className="h-8 w-8 rounded-full"
+              >
+                <Square className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                onClick={handleSubmit}
+                disabled={!input.trim() || !accessToken}
+                size="icon"
+                className="h-8 w-8 rounded-full"
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </div>
-        {isStreaming ? (
-          <Button
-            type="button"
-            variant="destructive"
-            size="icon"
-            onClick={abortStreaming}
-            className="shrink-0"
-          >
-            <Square className="h-4 w-4" />
-          </Button>
+
+        {/* Hint text - only show on desktop, but keep spacing on mobile */}
+        {isMobile ? (
+          <div className="h-2" />
         ) : (
-          <Button
-            type="submit"
-            disabled={!input.trim()}
-            size="icon"
-            className="shrink-0"
-          >
-            <Send className="h-4 w-4" />
-          </Button>
+          <p className="text-xs text-muted-foreground text-center mt-2">
+            Enter 发送，Shift+Enter 换行
+          </p>
         )}
       </div>
-    </form>
+    </div>
   );
 }

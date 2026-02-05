@@ -1,8 +1,5 @@
-'use client';
-
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +7,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { login, isLoading } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,7 +19,7 @@ export default function LoginPage() {
 
     try {
       await login(email, password);
-      router.push('/chat');
+      navigate('/chat');
     } catch (err) {
       setError(err instanceof Error ? err.message : '登录失败');
     }
@@ -76,7 +73,7 @@ export default function LoginPage() {
             </Button>
             <p className="text-sm text-muted-foreground text-center">
               还没有账号？{' '}
-              <Link href="/register" className="text-primary hover:underline">
+              <Link to="/register" className="text-primary hover:underline">
                 立即注册
               </Link>
             </p>

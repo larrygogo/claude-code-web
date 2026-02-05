@@ -12,6 +12,7 @@ model User {
   email        String    @unique
   username     String
   passwordHash String
+  settings     String    @default("{\"theme\":\"system\"}")
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   sessions     Session[]
@@ -44,8 +45,10 @@ model Project {
   userId         String
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   name           String
-  path           String
-  pathHash       String
+  path           String?
+  pathHash       String?
+  description    String?
+  instructions   String?
   claudeMdContent String?
   lastAccessedAt DateTime  @default(now())
   createdAt      DateTime  @default(now())

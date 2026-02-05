@@ -42,6 +42,7 @@ export interface SSEEvent<T = unknown> {
 export interface SSEInitData {
   sessionId: string;
   messageId: string;
+  title?: string;
 }
 
 export interface SSETextDelta {

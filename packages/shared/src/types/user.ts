@@ -1,7 +1,16 @@
+export interface UserSettings {
+  theme: 'light' | 'dark' | 'system';
+}
+
+export const defaultUserSettings: UserSettings = {
+  theme: 'system',
+};
+
 export interface User {
   id: string;
   email: string;
   username: string;
+  settings: UserSettings;
   createdAt: Date;
   updatedAt: Date;
 }

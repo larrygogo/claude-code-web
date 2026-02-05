@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { ApiResponse, AuthResponse, User } from '@claude-web/shared';
+import { ApiResponse, AuthResponse, User, UserSettings } from '@claude-web/shared';
 import { authService } from '../services/AuthService.js';
 import { authMiddleware, requireUser } from '../middleware/auth.js';
 
@@ -68,6 +68,21 @@ router.get('/me', authMiddleware, async (req, res: { json: (data: ApiResponse<Us
     const { userId } = requireUser(req);
     const user = await authService.getCurrentUser(userId);
     res.json({ success: true, data: user });
+  } catch (error) {
+    next(error);
+  }
+});
+
+const settingsSchema = z.object({
+  theme: z.enum(['light', 'dark', 'system']).optional(),
+});
+
+router.patch('/settings', authMiddleware, async (req, res: { json: (data: ApiResponse<UserSettings>) => void }, next) => {
+  try {
+    const { userId } = requireUser(req);
+    const input = settingsSchema.parse(req.body);
+    const settings = await authService.updateSettings(userId, input);
+    res.json({ success: true, data: settings });
   } catch (error) {
     next(error);
   }

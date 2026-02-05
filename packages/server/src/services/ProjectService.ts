@@ -4,6 +4,7 @@ import path from 'path';
 import {
   Project,
   ProjectCreateInput,
+  ProjectUpdateInput,
   ProjectListItem,
   ProjectContext,
   FileTreeNode,
@@ -19,41 +20,59 @@ export class ProjectService {
   async createProject(userId: string, input: ProjectCreateInput): Promise<Project> {
     const db = getDatabase();
 
-    const normalizedPath = path.normalize(input.path);
-    const pathHash = this.hashPath(normalizedPath);
+    if (input.path) {
+      const normalizedPath = path.normalize(input.path);
+      const pathHash = this.hashPath(normalizedPath);
 
-    try {
-      const stat = await fs.stat(normalizedPath);
-      if (!stat.isDirectory()) {
-        throw new ValidationError('Path must be a directory');
+      try {
+        const stat = await fs.stat(normalizedPath);
+        if (!stat.isDirectory()) {
+          throw new ValidationError('Path must be a directory');
+        }
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          throw new ValidationError('Directory does not exist');
+        }
+        throw error;
       }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-        throw new ValidationError('Directory does not exist');
-      }
-      throw error;
+
+      const claudeMdContent = await this.loadClaudeMd(normalizedPath);
+
+      const project = await db.project.upsert({
+        where: {
+          userId_pathHash: {
+            userId,
+            pathHash,
+          },
+        },
+        create: {
+          userId,
+          name: input.name,
+          path: normalizedPath,
+          pathHash,
+          description: input.description,
+          instructions: input.instructions,
+          claudeMdContent,
+        },
+        update: {
+          name: input.name,
+          description: input.description,
+          instructions: input.instructions,
+          claudeMdContent,
+          lastAccessedAt: new Date(),
+        },
+      });
+
+      return this.mapProject(project);
     }
 
-    const claudeMdContent = await this.loadClaudeMd(normalizedPath);
-
-    const project = await db.project.upsert({
-      where: {
-        userId_pathHash: {
-          userId,
-          pathHash,
-        },
-      },
-      create: {
+    // 无 path 的项目：纯组织容器
+    const project = await db.project.create({
+      data: {
         userId,
         name: input.name,
-        path: normalizedPath,
-        pathHash,
-        claudeMdContent,
-      },
-      update: {
-        name: input.name,
-        claudeMdContent,
-        lastAccessedAt: new Date(),
+        description: input.description,
+        instructions: input.instructions,
       },
     });
 
@@ -98,21 +117,30 @@ export class ProjectService {
       data: { lastAccessedAt: new Date() },
     });
 
-    const claudeMd = await this.loadClaudeMd(project.path);
+    // 有 path 的项目：读取 CLAUDE.md 和文件树
+    if (project.path) {
+      const claudeMd = await this.loadClaudeMd(project.path);
 
-    if (claudeMd !== project.claudeMdContent) {
-      await db.project.update({
-        where: { id: projectId },
-        data: { claudeMdContent: claudeMd },
-      });
+      if (claudeMd !== project.claudeMdContent) {
+        await db.project.update({
+          where: { id: projectId },
+          data: { claudeMdContent: claudeMd },
+        });
+      }
+
+      const fileTree = await this.buildFileTree(project.path);
+
+      return {
+        project: this.mapProject(project),
+        claudeMd: claudeMd || undefined,
+        fileTree,
+      };
     }
 
-    const fileTree = await this.buildFileTree(project.path);
-
+    // 无 path 的项目：使用 instructions 作为上下文
     return {
       project: this.mapProject(project),
-      claudeMd: claudeMd || undefined,
-      fileTree,
+      claudeMd: project.instructions || undefined,
     };
   }
 
@@ -132,10 +160,38 @@ export class ProjectService {
     return projects.map(p => ({
       id: p.id,
       name: p.name,
-      path: p.path,
+      path: p.path || undefined,
+      description: p.description || undefined,
       sessionCount: p._count.sessions,
       lastAccessedAt: p.lastAccessedAt,
     }));
+  }
+
+  async updateProject(userId: string, projectId: string, input: ProjectUpdateInput): Promise<Project> {
+    const db = getDatabase();
+
+    const project = await db.project.findUnique({
+      where: { id: projectId },
+    });
+
+    if (!project) {
+      throw new NotFoundError('Project');
+    }
+
+    if (project.userId !== userId) {
+      throw new ForbiddenError('Access denied to this project');
+    }
+
+    const updated = await db.project.update({
+      where: { id: projectId },
+      data: {
+        ...(input.name !== undefined && { name: input.name }),
+        ...(input.description !== undefined && { description: input.description }),
+        ...(input.instructions !== undefined && { instructions: input.instructions }),
+      },
+    });
+
+    return this.mapProject(updated);
   }
 
   async deleteProject(userId: string, projectId: string): Promise<void> {
@@ -169,6 +225,10 @@ export class ProjectService {
 
     if (project.userId !== userId) {
       throw new ForbiddenError('Access denied to this project');
+    }
+
+    if (!project.path) {
+      return project.instructions;
     }
 
     const claudeMd = await this.loadClaudeMd(project.path);
@@ -247,8 +307,10 @@ export class ProjectService {
     id: string;
     userId: string;
     name: string;
-    path: string;
-    pathHash: string;
+    path: string | null;
+    pathHash: string | null;
+    description: string | null;
+    instructions: string | null;
     claudeMdContent: string | null;
     createdAt: Date;
     updatedAt: Date;
@@ -257,8 +319,10 @@ export class ProjectService {
       id: project.id,
       userId: project.userId,
       name: project.name,
-      path: project.path,
-      pathHash: project.pathHash,
+      path: project.path || undefined,
+      pathHash: project.pathHash || undefined,
+      description: project.description || undefined,
+      instructions: project.instructions || undefined,
       claudeMdContent: project.claudeMdContent || undefined,
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,

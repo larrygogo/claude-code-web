@@ -1,6 +1,6 @@
 import { ApiResponse } from '@claude-web/shared';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 class ApiClient {
   private accessToken: string | null = null;
@@ -55,6 +55,13 @@ class ApiClient {
     });
   }
 
+  async put<T>(endpoint: string, body?: unknown): Promise<T> {
+    return this.request<T>(endpoint, {
+      method: 'PUT',
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  }
+
   async patch<T>(endpoint: string, body?: unknown): Promise<T> {
     return this.request<T>(endpoint, {
       method: 'PATCH',
@@ -70,7 +77,6 @@ class ApiClient {
 export const apiClient = new ApiClient();
 
 export async function login(email: string, password: string) {
-  const { AuthResponse } = await import('@claude-web/shared');
   return apiClient.post<import('@claude-web/shared').AuthResponse>('/api/auth/login', {
     email,
     password,
@@ -97,6 +103,10 @@ export async function logout(refreshToken: string) {
 
 export async function getCurrentUser() {
   return apiClient.get<import('@claude-web/shared').User>('/api/auth/me');
+}
+
+export async function updateUserSettings(settings: Partial<import('@claude-web/shared').UserSettings>) {
+  return apiClient.patch<import('@claude-web/shared').UserSettings>('/api/auth/settings', settings);
 }
 
 export async function getSessions(projectId?: string) {
@@ -129,11 +139,20 @@ export async function getProjects() {
   return apiClient.get<import('@claude-web/shared').ProjectListItem[]>('/api/projects');
 }
 
-export async function createProject(name: string, path: string) {
-  return apiClient.post<import('@claude-web/shared').Project>('/api/projects', {
-    name,
-    path,
-  });
+export async function getProject(projectId: string) {
+  return apiClient.get<import('@claude-web/shared').Project>(`/api/projects/${projectId}`);
+}
+
+export async function createProject(input: import('@claude-web/shared').ProjectCreateInput) {
+  return apiClient.post<import('@claude-web/shared').Project>('/api/projects', input);
+}
+
+export async function updateProject(projectId: string, input: import('@claude-web/shared').ProjectUpdateInput) {
+  return apiClient.put<import('@claude-web/shared').Project>(`/api/projects/${projectId}`, input);
+}
+
+export async function deleteProject(projectId: string) {
+  return apiClient.delete(`/api/projects/${projectId}`);
 }
 
 export async function getProjectContext(projectId: string) {
@@ -159,4 +178,10 @@ export async function executePlan(planId: string) {
 
 export async function abortChat(sessionId: string) {
   return apiClient.post<{ aborted: boolean }>(`/api/chat/abort/${sessionId}`);
+}
+
+export async function searchProjectPath(description: string) {
+  return apiClient.post<{ paths: string[]; message: string }>('/api/projects/search-path', {
+    description,
+  });
 }

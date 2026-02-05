@@ -48,10 +48,16 @@ packages/server/data
 **/users/*/plans/*.md
 
 # Test output files
-test-result.png
+test-result*.png
 test-error.png
 tests/e2e-result.png
 tests/e2e-error.png
+
+# Windows artifacts
+nul
+
+# TypeScript build info
+*.tsbuildinfo
 
 # Legacy test files
 test-browser.mjs

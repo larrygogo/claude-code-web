@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { User, AuthTokens } from '@claude-web/shared';
-import { apiClient, login as apiLogin, register as apiRegister, refreshToken, logout as apiLogout, getCurrentUser } from '@/lib/api';
+import { User, AuthTokens, UserSettings } from '@claude-web/shared';
+import { apiClient, login as apiLogin, register as apiRegister, refreshToken, logout as apiLogout, getCurrentUser, updateUserSettings } from '@/lib/api';
 
 interface AuthState {
   user: User | null;
@@ -14,6 +14,7 @@ interface AuthState {
   logout: () => Promise<void>;
   initialize: () => Promise<void>;
   refresh: () => Promise<void>;
+  updateSettings: (settings: Partial<UserSettings>) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -105,6 +106,16 @@ export const useAuthStore = create<AuthState>()(
         const response = await refreshToken(tokens.refreshToken);
         apiClient.setAccessToken(response.tokens.accessToken);
         set({ tokens: response.tokens });
+      },
+
+      updateSettings: async (settings: Partial<UserSettings>) => {
+        const { user } = get();
+        if (!user) {
+          throw new Error('Not logged in');
+        }
+
+        const newSettings = await updateUserSettings(settings);
+        set({ user: { ...user, settings: newSettings } });
       },
     }),
     {

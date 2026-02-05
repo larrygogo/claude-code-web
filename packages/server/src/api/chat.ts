@@ -20,8 +20,13 @@ router.post('/stream', authMiddleware, async (req, res: Response) => {
   let isCompleted = false;
   let activeSessionId: string | undefined = request.sessionId;
 
-  req.on('close', () => {
-    if (!isCompleted && activeSessionId) {
+  // Use res.on('close') instead of req.on('close')
+  // In Node.js >= 18, req 'close' fires when request body is consumed,
+  // not when the client disconnects. res 'close' + !writableFinished
+  // is the correct way to detect premature client disconnection.
+  res.on('close', () => {
+    if (!isCompleted && !res.writableFinished && activeSessionId) {
+      console.log('[Chat] Client disconnected, aborting session:', activeSessionId);
       agentService.abortSession(activeSessionId);
     }
   });
@@ -34,6 +39,7 @@ router.post('/stream', authMiddleware, async (req, res: Response) => {
     return result;
   } catch (error) {
     isCompleted = true;
+    console.error('[Chat] Stream error:', error);
     throw error;
   }
 });

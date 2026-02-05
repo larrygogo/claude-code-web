@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SSE Test</title>
+  <style>
+    body { font-family: monospace; padding: 20px; }
+    #log { background: #f0f0f0; padding: 10px; white-space: pre-wrap; }
+    button { margin: 5px; padding: 10px 20px; }
+    input { padding: 8px; width: 300px; margin: 5px; }
+  </style>
+</head>
+<body>
+  <h1>SSE Direct Test</h1>
+  <div>
+    <input type="email" id="email" placeholder="Email" value="ssetest@example.com">
+    <input type="password" id="password" placeholder="Password" value="Test123456!">
+    <button onclick="login()">Login</button>
+    <button onclick="register()">Register</button>
+  </div>
+  <div>
+    <input type="text" id="message" placeholder="Message" value="请回复测试成功">
+    <button onclick="sendMessage()">Send Message</button>
+    <button onclick="abort()">Abort</button>
+  </div>
+  <div>
+    <p>Token: <span id="tokenDisplay">-</span></p>
+    <p>Status: <span id="status">Ready</span></p>
+  </div>
+  <h3>Log:</h3>
+  <div id="log"></div>
+
+  <script>
+    const API_URL = 'http://localhost:3001';
+    let token = null;
+    let abortController = null;
+
+    function log(msg) {
+      const el = document.getElementById('log');
+      el.textContent += new Date().toLocaleTimeString() + ' - ' + msg + '\n';
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function setStatus(s) {
+      document.getElementById('status').textContent = s;
+    }
+
+    async function login() {
+      try {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        log('Logging in...');
+        const res = await fetch(`${API_URL}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          token = data.data.tokens.accessToken;
+          document.getElementById('tokenDisplay').textContent = token.substring(0, 20) + '...';
+          log('Login successful!');
+        } else {
+          log('Login failed: ' + JSON.stringify(data.error));
+        }
+      } catch (e) {
+        log('Login error: ' + e.message);
+      }
+    }
+
+    async function register() {
+      try {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const username = 'user_' + Date.now();
+        log('Registering...');
+        const res = await fetch(`${API_URL}/api/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, username, password }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          token = data.data.tokens.accessToken;
+          document.getElementById('tokenDisplay').textContent = token.substring(0, 20) + '...';
+          log('Register successful!');
+        } else {
+          log('Register failed: ' + JSON.stringify(data.error));
+        }
+      } catch (e) {
+        log('Register error: ' + e.message);
+      }
+    }
+
+    async function sendMessage() {
+      if (!token) {
+        log('Please login first!');
+        return;
+      }
+
+      const message = document.getElementById('message').value;
+      log('Sending message: ' + message);
+      setStatus('Connecting...');
+
+      abortController = new AbortController();
+
+      // Listen for abort
+      abortController.signal.addEventListener('abort', () => {
+        log('AbortController aborted!');
+      });
+
+      try {
+        log('Making fetch request...');
+        const response = await fetch(`${API_URL}/api/chat/stream`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ message }),
+          signal: abortController.signal,
+        });
+
+        log('Response status: ' + response.status);
+        log('Response headers: ' + JSON.stringify(Object.fromEntries(response.headers.entries())));
+
+        if (!response.ok) {
+          log('Request failed: ' + await response.text());
+          return;
+        }
+
+        setStatus('Reading stream...');
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        log('Starting to read...');
+
+        while (true) {
+          const { done, value } = await reader.read();
+
+          if (done) {
+            log('Stream ended');
+            break;
+          }
+
+          const text = decoder.decode(value, { stream: true });
+          log('Received: ' + text.replace(/\n/g, '\\n'));
+        }
+
+        setStatus('Done');
+        log('Stream completed successfully!');
+
+      } catch (e) {
+        setStatus('Error');
+        if (e.name === 'AbortError') {
+          log('Request was aborted');
+        } else {
+          log('Error: ' + e.message);
+        }
+      }
+
+      abortController = null;
+    }
+
+    function abort() {
+      if (abortController) {
+        log('Aborting...');
+        abortController.abort();
+      } else {
+        log('No active request to abort');
+      }
+    }
+  </script>
+</body>
+</html>

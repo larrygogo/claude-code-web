@@ -13,14 +13,19 @@ import {
   forkSession as apiForkSession,
   abortChat,
 } from '@/lib/api';
-import { streamChat, SSEEventHandler } from '@/lib/sse';
+import { streamChat, SSEEventHandler, abortStream, abortCurrentStream } from '@/lib/sse';
+
+interface StreamingBlock {
+  type: 'text' | 'thinking' | 'tool_use' | 'tool_result';
+  content?: string;
+  toolUse?: { id: string; name: string; input: Record<string, unknown> };
+  toolResult?: { toolUseId: string; content: string; isError?: boolean };
+}
 
 interface StreamingState {
   sessionId: string | null;
   messageId: string | null;
-  text: string;
-  thinking: string;
-  toolUses: Array<{ id: string; name: string; input: Record<string, unknown>; result?: string; isError?: boolean }>;
+  blocks: StreamingBlock[];
   isComplete: boolean;
 }
 
@@ -30,15 +35,16 @@ interface ChatState {
   streaming: StreamingState | null;
   isLoadingSessions: boolean;
   isLoadingSession: boolean;
-  isStreaming: boolean;
+  streamingSessionId: string | null;  // 替代全局 isStreaming，记录正在流式传输的会话 ID
   error: string | null;
+  abortController: AbortController | null;
 
   loadSessions: (projectId?: string) => Promise<void>;
   loadSession: (sessionId: string) => Promise<void>;
   newSession: (projectId?: string) => Promise<string>;
   deleteSession: (sessionId: string) => Promise<void>;
   forkSession: (sessionId: string, messageIndex: number) => Promise<string>;
-  sendMessage: (message: string, projectId?: string) => Promise<void>;
+  sendMessage: (message: string, projectId?: string, token?: string) => Promise<void>;
   abortStreaming: () => Promise<void>;
   clearError: () => void;
 }
@@ -46,9 +52,7 @@ interface ChatState {
 const initialStreamingState: StreamingState = {
   sessionId: null,
   messageId: null,
-  text: '',
-  thinking: '',
-  toolUses: [],
+  blocks: [],
   isComplete: false,
 };
 
@@ -58,8 +62,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   streaming: null,
   isLoadingSessions: false,
   isLoadingSession: false,
-  isStreaming: false,
+  streamingSessionId: null,
   error: null,
+  abortController: null,
 
   loadSessions: async (projectId?: string) => {
     set({ isLoadingSessions: true, error: null });
@@ -135,141 +140,232 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  sendMessage: async (message: string, projectId?: string) => {
-    const { currentSession, isStreaming } = get();
+  sendMessage: async (message: string, projectId?: string, token?: string) => {
+    const { currentSession, streamingSessionId } = get();
+    const currentSessionId = currentSession?.id || null;
 
-    if (isStreaming) {
+    // 只阻止当前会话正在流式传输时重复发送
+    if (streamingSessionId && streamingSessionId === currentSessionId) {
       return;
     }
 
-    set({
-      isStreaming: true,
-      error: null,
-      streaming: { ...initialStreamingState },
-    });
+    if (!token) {
+      console.error('[ChatStore] No token provided');
+      return;
+    }
 
+    // Create a temporary user message for immediate display
+    const tempUserMessageId = `temp-${Date.now()}`;
     const userMessage: Message = {
-      id: crypto.randomUUID(),
+      id: tempUserMessageId,
       sessionId: currentSession?.id || '',
       role: 'user',
       content: [{ type: 'text', content: message }],
       createdAt: new Date(),
     };
 
+    // Add user message to current session immediately (optimistic update)
     if (currentSession) {
       set({
         currentSession: {
           ...currentSession,
           messages: [...currentSession.messages, userMessage],
         },
+        streamingSessionId: currentSessionId,
+        streaming: { ...initialStreamingState },
+        error: null,
+      });
+    } else {
+      set({
+        streamingSessionId: currentSessionId,
+        streaming: { ...initialStreamingState },
+        error: null,
       });
     }
 
     const handlers: SSEEventHandler = {
       onInit: (data) => {
-        set((state) => ({
-          streaming: {
-            ...state.streaming!,
-            sessionId: data.sessionId,
-            messageId: data.messageId,
-          },
-        }));
+        set((state) => {
+          const updates: Partial<ChatState> = {
+            streaming: {
+              ...state.streaming!,
+              sessionId: data.sessionId,
+              messageId: data.messageId,
+            },
+            // 更新为真实的 sessionId（新建会话时，初始可能为 null）
+            streamingSessionId: data.sessionId,
+          };
 
-        // Don't load session during streaming - it will be loaded after done
+          // 如果服务端返回了更新后的标题，同步更新前端状态
+          if (data.title && state.currentSession) {
+            updates.currentSession = {
+              ...state.currentSession,
+              id: data.sessionId || state.currentSession.id,
+              title: data.title,
+            };
+            // 同步更新侧边栏的会话列表
+            updates.sessions = state.sessions.map(s =>
+              s.id === (data.sessionId || state.currentSession?.id)
+                ? { ...s, title: data.title! }
+                : s
+            );
+          }
+
+          return updates;
+        });
       },
       onTextDelta: (data) => {
-        set((state) => ({
-          streaming: {
-            ...state.streaming!,
-            text: state.streaming!.text + data.content,
-          },
-        }));
+        set((state) => {
+          const blocks = [...state.streaming!.blocks];
+          const lastBlock = blocks[blocks.length - 1];
+
+          // 如果最后一个块是文本块，追加内容；否则创建新的文本块
+          if (lastBlock?.type === 'text') {
+            blocks[blocks.length - 1] = {
+              ...lastBlock,
+              content: (lastBlock.content || '') + data.content,
+            };
+          } else {
+            blocks.push({ type: 'text', content: data.content });
+          }
+
+          return {
+            streaming: { ...state.streaming!, blocks },
+          };
+        });
       },
       onThinkingDelta: (data) => {
-        set((state) => ({
-          streaming: {
-            ...state.streaming!,
-            thinking: state.streaming!.thinking + data.content,
-          },
-        }));
+        set((state) => {
+          const blocks = [...state.streaming!.blocks];
+          const lastBlock = blocks[blocks.length - 1];
+
+          // 如果最后一个块是思考块，追加内容；否则创建新的思考块
+          if (lastBlock?.type === 'thinking') {
+            blocks[blocks.length - 1] = {
+              ...lastBlock,
+              content: (lastBlock.content || '') + data.content,
+            };
+          } else {
+            blocks.push({ type: 'thinking', content: data.content });
+          }
+
+          return {
+            streaming: { ...state.streaming!, blocks },
+          };
+        });
       },
       onToolUse: (data) => {
-        set((state) => ({
-          streaming: {
-            ...state.streaming!,
-            toolUses: [
-              ...state.streaming!.toolUses,
-              { id: data.id, name: data.name, input: data.input },
-            ],
-          },
-        }));
+        set((state) => {
+          const blocks = [...state.streaming!.blocks];
+          // 检查是否已存在该工具调用（可能是更新输入参数）
+          const existingIndex = blocks.findIndex(
+            b => b.type === 'tool_use' && b.toolUse?.id === data.id
+          );
+
+          if (existingIndex >= 0) {
+            // 更新现有的工具调用
+            blocks[existingIndex] = {
+              type: 'tool_use',
+              toolUse: { id: data.id, name: data.name, input: data.input },
+            };
+          } else {
+            // 添加新的工具调用
+            blocks.push({
+              type: 'tool_use',
+              toolUse: { id: data.id, name: data.name, input: data.input },
+            });
+          }
+
+          return {
+            streaming: { ...state.streaming!, blocks },
+          };
+        });
       },
       onToolResult: (data) => {
-        set((state) => ({
-          streaming: {
-            ...state.streaming!,
-            toolUses: state.streaming!.toolUses.map((t) =>
-              t.id === data.toolUseId
-                ? { ...t, result: data.content, isError: data.isError }
-                : t
-            ),
-          },
-        }));
+        set((state) => {
+          const blocks = [...state.streaming!.blocks];
+          blocks.push({
+            type: 'tool_result',
+            toolResult: {
+              toolUseId: data.toolUseId,
+              content: data.content,
+              isError: data.isError,
+            },
+          });
+
+          return {
+            streaming: { ...state.streaming!, blocks },
+          };
+        });
       },
       onError: (data) => {
         set({
           error: data.message,
-          isStreaming: false,
+          streamingSessionId: null,
+          streaming: null,
         });
       },
       onDone: async (data) => {
         const { streaming, currentSession } = get();
+        const sessionId = streaming?.sessionId || currentSession?.id;
 
-        if (streaming) {
-          const sessionId = streaming.sessionId || currentSession?.id;
+        // 将流式消息转换为正式的助手消息，添加到当前会话
+        if (streaming && streaming.blocks.length > 0) {
+          const assistantMessage: Message = {
+            id: streaming.messageId || `msg-${Date.now()}`,
+            sessionId: sessionId || '',
+            role: 'assistant',
+            content: streaming.blocks.map((block): ContentBlock => {
+              switch (block.type) {
+                case 'text':
+                  return { type: 'text', content: block.content || '' };
+                case 'thinking':
+                  return { type: 'thinking', content: block.content || '' };
+                case 'tool_use':
+                  return {
+                    type: 'tool_use',
+                    toolUse: block.toolUse || { id: '', name: '', input: {} },
+                  };
+                case 'tool_result':
+                  return {
+                    type: 'tool_result',
+                    toolResult: block.toolResult || { toolUseId: '', content: '', isError: false },
+                  };
+                default:
+                  return { type: 'text', content: '' };
+              }
+            }),
+            createdAt: new Date(),
+          };
 
-          if (sessionId) {
-            const assistantMessage: Message = {
-              id: data.messageId,
-              sessionId,
-              role: 'assistant',
-              content: buildContentBlocks(streaming),
-              createdAt: new Date(),
-              stopReason: data.stopReason,
-              inputTokens: data.inputTokens,
-              outputTokens: data.outputTokens,
-            };
-
-            if (currentSession) {
-              set({
-                currentSession: {
-                  ...currentSession,
-                  messages: [...currentSession.messages, assistantMessage],
-                },
-                streaming: null,
-                isStreaming: false,
-              });
-            } else {
-              // New session - load it
-              set({
-                streaming: null,
-                isStreaming: false,
-              });
-              await get().loadSession(sessionId);
-            }
+          // 直接添加到当前会话，不重新加载
+          if (currentSession) {
+            set({
+              currentSession: {
+                ...currentSession,
+                id: sessionId || currentSession.id,
+                messages: [...currentSession.messages, assistantMessage],
+              },
+              streaming: null,
+              streamingSessionId: null,
+              abortController: null,
+            });
           } else {
             set({
               streaming: null,
-              isStreaming: false,
+              streamingSessionId: null,
+              abortController: null,
             });
           }
         } else {
           set({
             streaming: null,
-            isStreaming: false,
+            streamingSessionId: null,
+            abortController: null,
           });
         }
 
+        // 后台更新会话列表（不影响当前会话）
         get().loadSessions();
       },
     };
@@ -281,72 +377,44 @@ export const useChatStore = create<ChatState>((set, get) => ({
           projectId,
           message,
         },
-        handlers
+        handlers,
+        token
       );
     } catch (error) {
-      if ((error as Error).name !== 'AbortError') {
-        set({
-          error: error instanceof Error ? error.message : 'Stream failed',
-          isStreaming: false,
-          streaming: null,
-        });
-      }
+      set({
+        error: error instanceof Error ? error.message : 'Stream failed',
+        streamingSessionId: null,
+        streaming: null,
+        abortController: null,
+      });
     }
   },
 
   abortStreaming: async () => {
-    const { streaming, isStreaming } = get();
-    if (!isStreaming || !streaming?.sessionId) {
+    const { streaming, streamingSessionId } = get();
+    if (!streamingSessionId) {
       return;
     }
 
-    try {
-      await abortChat(streaming.sessionId);
-    } catch {
-      // Ignore abort errors
+    // 按会话中止流
+    abortStream(streamingSessionId);
+
+    // Then notify server
+    if (streaming?.sessionId) {
+      try {
+        await abortChat(streaming.sessionId);
+      } catch {
+        // Ignore abort errors
+      }
     }
 
     set({
-      isStreaming: false,
+      streamingSessionId: null,
       streaming: null,
+      abortController: null,
     });
   },
 
   clearError: () => set({ error: null }),
 }));
 
-function buildContentBlocks(streaming: StreamingState): ContentBlock[] {
-  const blocks: ContentBlock[] = [];
-
-  if (streaming.thinking) {
-    blocks.push({ type: 'thinking', content: streaming.thinking });
-  }
-
-  if (streaming.text) {
-    blocks.push({ type: 'text', content: streaming.text });
-  }
-
-  for (const toolUse of streaming.toolUses) {
-    blocks.push({
-      type: 'tool_use',
-      toolUse: {
-        id: toolUse.id,
-        name: toolUse.name,
-        input: toolUse.input,
-      },
-    });
-
-    if (toolUse.result !== undefined) {
-      blocks.push({
-        type: 'tool_result',
-        toolResult: {
-          toolUseId: toolUse.id,
-          content: toolUse.result,
-          isError: toolUse.isError,
-        },
-      });
-    }
-  }
-
-  return blocks;
-}

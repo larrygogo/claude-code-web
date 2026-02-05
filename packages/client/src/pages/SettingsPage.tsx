@@ -1,19 +1,34 @@
-'use client';
-
 import React from 'react';
-import { useRouter } from 'next/navigation';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
+import { useConfirm } from '@/contexts/ConfirmContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { LogOut, User, Moon, Sun } from 'lucide-react';
+import { LogOut, User, Moon, Sun, Monitor } from 'lucide-react';
 
 export default function SettingsPage() {
-  const router = useRouter();
-  const { user, logout } = useAuthStore();
+  const navigate = useNavigate();
+  const { user, logout, updateSettings } = useAuthStore();
+  const confirm = useConfirm();
+
+  const theme = user?.settings?.theme || 'system';
+
+  const handleThemeChange = async (newTheme: 'light' | 'dark' | 'system') => {
+    try {
+      await updateSettings({ theme: newTheme });
+    } catch (error) {
+      console.error('Failed to update theme:', error);
+    }
+  };
 
   const handleLogout = async () => {
+    const confirmed = await confirm({
+      title: '确定要退出登录吗？',
+      confirmText: '退出',
+    });
+    if (!confirmed) return;
     await logout();
-    router.push('/login');
+    navigate('/login');
   };
 
   return (
@@ -59,15 +74,28 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm">
+              <Button
+                variant={theme === 'light' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => handleThemeChange('light')}
+              >
                 <Sun className="h-4 w-4 mr-2" />
                 浅色
               </Button>
-              <Button variant="outline" size="sm">
+              <Button
+                variant={theme === 'dark' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => handleThemeChange('dark')}
+              >
                 <Moon className="h-4 w-4 mr-2" />
                 深色
               </Button>
-              <Button variant="outline" size="sm">
+              <Button
+                variant={theme === 'system' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => handleThemeChange('system')}
+              >
+                <Monitor className="h-4 w-4 mr-2" />
                 跟随系统
               </Button>
             </div>
@@ -85,11 +113,8 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-destructive/50">
-          <CardHeader>
-            <CardTitle className="text-destructive">危险操作</CardTitle>
-          </CardHeader>
-          <CardContent>
+        <Card>
+          <CardContent className="pt-6">
             <Button variant="destructive" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-2" />
               退出登录

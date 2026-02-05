@@ -8,6 +8,8 @@ import {
   AuthTokens,
   AuthResponse,
   JwtPayload,
+  UserSettings,
+  defaultUserSettings,
 } from '@claude-web/shared';
 import { getDatabase } from '../storage/Database.js';
 import { fileStorage } from '../storage/FileStorage.js';
@@ -125,6 +127,28 @@ export class AuthService {
     return this.sanitizeUser(user);
   }
 
+  async updateSettings(userId: string, settings: Partial<UserSettings>): Promise<UserSettings> {
+    const db = getDatabase();
+
+    const user = await db.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundError('User');
+    }
+
+    const currentSettings = this.parseSettings(user.settings);
+    const newSettings = { ...currentSettings, ...settings };
+
+    await db.user.update({
+      where: { id: userId },
+      data: { settings: JSON.stringify(newSettings) },
+    });
+
+    return newSettings;
+  }
+
   private async generateTokens(user: { id: string; email: string }): Promise<AuthTokens> {
     const db = getDatabase();
 
@@ -156,10 +180,19 @@ export class AuthService {
     };
   }
 
+  private parseSettings(settingsStr: string): UserSettings {
+    try {
+      return { ...defaultUserSettings, ...JSON.parse(settingsStr) };
+    } catch {
+      return defaultUserSettings;
+    }
+  }
+
   private sanitizeUser(user: {
     id: string;
     email: string;
     username: string;
+    settings: string;
     createdAt: Date;
     updatedAt: Date;
   }): User {
@@ -167,6 +200,7 @@ export class AuthService {
       id: user.id,
       email: user.email,
       username: user.username,
+      settings: this.parseSettings(user.settings),
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
     };
