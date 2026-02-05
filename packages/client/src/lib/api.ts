@@ -1,6 +1,24 @@
-import { ApiResponse } from '@claude-web/shared';
+import { ApiResponse, SystemConfig } from '@claude-web/shared';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// 运行时环境变量支持（Docker 部署时通过 env-config.js 注入）
+declare global {
+  interface Window {
+    __ENV__?: {
+      VITE_API_URL?: string;
+    };
+  }
+}
+
+function getApiBaseUrl(): string {
+  // 优先使用运行时注入的环境变量（Docker 部署）
+  if (typeof window !== 'undefined' && window.__ENV__?.VITE_API_URL) {
+    return window.__ENV__.VITE_API_URL;
+  }
+  // 回退到构建时的环境变量
+  return import.meta.env.VITE_API_URL || 'http://localhost:3001';
+}
+
+const API_BASE_URL = getApiBaseUrl();
 
 class ApiClient {
   private accessToken: string | null = null;
@@ -232,4 +250,10 @@ export async function updateAdminModel(id: string, input: import('@claude-web/sh
 
 export async function deleteAdminModel(id: string) {
   return apiClient.delete<{ message: string }>(`/api/admin/models/${id}`);
+}
+
+// ==================== System API ====================
+
+export async function getSystemConfig() {
+  return apiClient.get<SystemConfig>('/api/system/config');
 }
