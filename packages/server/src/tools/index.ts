@@ -13,6 +13,7 @@ import { bashTool } from './Bash.js';
 import { globTool } from './Glob.js';
 import { grepTool } from './Grep.js';
 import { webFetchTool } from './WebFetch.js';
+import { isToolEnabled, getOperationMode } from '../config.js';
 
 // 新增工具 - 文件操作增强
 import { lsTool } from './Ls.js';
@@ -49,6 +50,19 @@ export type ToolName =
   | 'TodoRead' | 'TodoWrite';
 
 /**
+ * 获取工具被禁用时的友好提示
+ */
+function getDisabledToolMessage(toolName: string): string {
+  const mode = getOperationMode();
+  const messages: Record<string, string> = {
+    Write: '文件写入功能已禁用。当前系统运行在受限模式下，不允许创建或修改文件。',
+    Edit: '文件编辑功能已禁用。当前系统运行在受限模式下，不允许修改文件内容。',
+    Bash: '命令执行功能已禁用。当前系统运行在受限模式下，不允许执行系统命令。',
+  };
+  return messages[toolName] || `工具 ${toolName} 已禁用。当前操作模式: ${mode}`;
+}
+
+/**
  * 执行工具
  * @param name 工具名称
  * @param input 工具输入参数
@@ -63,6 +77,15 @@ export async function executeTool(
   console.log(`[Tools] Executing tool: ${name}`);
   console.log(`[Tools] Input:`, JSON.stringify(input, null, 2));
   console.log(`[Tools] Working directory: ${workingDir}`);
+
+  // 检查工具是否启用
+  if (!isToolEnabled(name)) {
+    console.log(`[Tools] Tool ${name} is disabled in current operation mode`);
+    return {
+      content: getDisabledToolMessage(name),
+      isError: true,
+    };
+  }
 
   try {
     switch (name) {

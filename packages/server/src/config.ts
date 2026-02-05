@@ -28,7 +28,46 @@ export const config = {
     origin: process.env.CLIENT_URL || 'http://localhost:3000',
     credentials: true,
   },
+
+  // 操作模式配置
+  operationMode: {
+    enableFileSystem: process.env.ENABLE_FILE_SYSTEM !== 'false',  // 默认启用
+    enableBash: process.env.ENABLE_BASH !== 'false',  // 默认启用
+  },
 };
+
+/**
+ * 获取当前操作模式
+ */
+export function getOperationMode(): 'full' | 'restricted' {
+  const { enableFileSystem, enableBash } = config.operationMode;
+  return enableFileSystem && enableBash ? 'full' : 'restricted';
+}
+
+/**
+ * 获取启用的工具列表
+ */
+export function getEnabledTools(): string[] {
+  const { enableFileSystem, enableBash } = config.operationMode;
+  const tools: string[] = ['Read', 'Glob', 'Grep', 'WebFetch'];
+
+  if (enableFileSystem) {
+    tools.push('Write', 'Edit');
+  }
+
+  if (enableBash) {
+    tools.push('Bash');
+  }
+
+  return tools;
+}
+
+/**
+ * 检查工具是否启用
+ */
+export function isToolEnabled(toolName: string): boolean {
+  return getEnabledTools().includes(toolName);
+}
 
 export function validateConfig(): void {
   if (config.nodeEnv === 'production') {
