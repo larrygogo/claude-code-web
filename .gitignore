@@ -1,0 +1,53 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Build outputs
+dist
+.next
+out
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.db-journal
+prisma/migrations
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Testing
+coverage
+
+# Turbo
+.turbo
+
+# Data directory (production)
+/data
+
+# Development data
+packages/server/data
+**/users/*/sessions/*.jsonl
+**/users/*/plans/*.md
+
+# Test files
+test-result.png
+test-error.png
+test-browser.mjs

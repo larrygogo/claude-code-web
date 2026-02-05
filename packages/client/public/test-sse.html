@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>SSE Test</title>
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; }
+    #output { background: #f5f5f5; padding: 15px; white-space: pre-wrap; min-height: 200px; border-radius: 8px; }
+    button { padding: 10px 20px; margin: 10px 0; cursor: pointer; }
+    input { padding: 10px; width: 300px; }
+  </style>
+</head>
+<body>
+  <h1>SSE Chat Test</h1>
+
+  <div>
+    <label>Email: <input id="email" value="test2@test.com"></label><br><br>
+    <label>Password: <input id="password" type="password" value="test123456"></label><br>
+    <button onclick="login()">Login</button>
+  </div>
+
+  <div style="margin-top: 20px;">
+    <label>Message: <input id="message" value="你好"></label>
+    <button onclick="sendMessage()">Send</button>
+  </div>
+
+  <h3>Output:</h3>
+  <div id="output"></div>
+
+  <script>
+    let accessToken = null;
+    const API_URL = 'http://localhost:3001';
+
+    function log(msg) {
+      const output = document.getElementById('output');
+      output.textContent += new Date().toLocaleTimeString() + ': ' + msg + '\n';
+      output.scrollTop = output.scrollHeight;
+    }
+
+    async function login() {
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+
+      log('Logging in...');
+
+      try {
+        const res = await fetch(API_URL + '/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          accessToken = data.data.tokens.accessToken;
+          log('Login successful! Token: ' + accessToken.substring(0, 20) + '...');
+        } else {
+          log('Login failed: ' + JSON.stringify(data.error));
+        }
+      } catch (e) {
+        log('Login error: ' + e.message);
+      }
+    }
+
+    async function sendMessage() {
+      if (!accessToken) {
+        log('Please login first!');
+        return;
+      }
+
+      const message = document.getElementById('message').value;
+      log('Sending message: ' + message);
+
+      try {
+        const res = await fetch(API_URL + '/api/chat/stream', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + accessToken
+          },
+          body: JSON.stringify({ message })
+        });
+
+        log('Response status: ' + res.status);
+
+        if (!res.ok) {
+          const text = await res.text();
+          log('Error response: ' + text);
+          return;
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let fullText = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+
+          if (done) {
+            log('Stream finished');
+            break;
+          }
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const event = JSON.parse(line.substring(6));
+                if (event.type === 'init') {
+                  log('Init: sessionId=' + event.data.sessionId);
+                } else if (event.type === 'text_delta') {
+                  fullText += event.data.content;
+                  // Update inline
+                } else if (event.type === 'done') {
+                  log('Done! Full response: ' + fullText);
+                } else if (event.type === 'error') {
+                  log('Error: ' + event.data.message);
+                }
+              } catch (e) {
+                // ignore
+              }
+            }
+          }
+        }
+      } catch (e) {
+        log('Error: ' + e.message);
+        console.error(e);
+      }
+    }
+  </script>
+</body>
+</html>
