@@ -14,6 +14,11 @@ import ProjectDetailPage from '@/pages/ProjectDetailPage';
 import PlansPage from '@/pages/PlansPage';
 import SettingsPage from '@/pages/SettingsPage';
 import MainLayout from '@/components/Layout/MainLayout';
+import { AdminRoute } from '@/components/AdminRoute';
+import { AdminLayout } from '@/components/Layout/AdminLayout';
+import AdminDashboardPage from '@/pages/admin/DashboardPage';
+import AdminUsersPage from '@/pages/admin/UsersPage';
+import AdminModelsPage from '@/pages/admin/ModelsPage';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isInitialized } = useAuthStore();
@@ -92,6 +97,18 @@ export default function App() {
           <Route path="projects/:projectId" element={<ProjectDetailPage />} />
           <Route path="plans" element={<PlansPage />} />
           <Route path="settings" element={<SettingsPage />} />
+        </Route>
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminLayout />
+            </AdminRoute>
+          }
+        >
+          <Route index element={<AdminDashboardPage />} />
+          <Route path="users" element={<AdminUsersPage />} />
+          <Route path="models" element={<AdminModelsPage />} />
         </Route>
       </Routes>
     </ConfirmProvider>

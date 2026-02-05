@@ -7,6 +7,7 @@ import chatRouter from './api/chat.js';
 import sessionsRouter from './api/sessions.js';
 import projectsRouter from './api/projects.js';
 import plansRouter from './api/plans.js';
+import adminRouter from './api/admin.js';
 
 export function createApp(): express.Application {
   const app = express();
@@ -23,6 +24,7 @@ export function createApp(): express.Application {
   app.use('/api/sessions', sessionsRouter);
   app.use('/api/projects', projectsRouter);
   app.use('/api/plans', plansRouter);
+  app.use('/api/admin', adminRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -30,6 +30,7 @@ export type SSEEventType =
   | 'tool_use'
   | 'tool_result'
   | 'permission_request'
+  | 'title_update'
   | 'error'
   | 'done';
 
@@ -75,6 +76,11 @@ export interface SSEPermissionRequest {
 export interface SSEError {
   code: string;
   message: string;
+}
+
+export interface SSETitleUpdate {
+  sessionId: string;
+  title: string;
 }
 
 export interface SSEDone {
