@@ -6,10 +6,18 @@ import { authMiddleware, requireUser } from '../middleware/auth.js';
 
 const router = Router();
 
+const attachmentSchema = z.object({
+  name: z.string(),
+  mediaType: z.string(),
+  data: z.string(),
+  size: z.number().max(10 * 1024 * 1024),  // 单文件最大 10MB
+});
+
 const chatRequestSchema = z.object({
   sessionId: z.string().uuid().optional(),
   projectId: z.string().uuid().optional(),
   message: z.string().min(1, 'Message is required'),
+  attachments: z.array(attachmentSchema).max(10).optional(),  // 最多 10 个附件
   permissionMode: z.enum(['plan', 'acceptEdits', 'default']).optional(),
 });
 

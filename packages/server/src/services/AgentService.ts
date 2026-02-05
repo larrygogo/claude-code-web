@@ -17,6 +17,8 @@ import {
   ToolUseBlock,
   ToolResultBlock,
   ThinkingBlock,
+  ImageBlock,
+  DocumentBlock,
 } from '@claude-web/shared';
 import { sessionStorage } from '../storage/SessionStorage.js';
 import { sessionService } from './SessionService.js';
@@ -42,6 +44,11 @@ interface ClaudeContentBlock {
   id?: string;
   name?: string;
   input?: Record<string, unknown>;
+  source?: {           // 用于 image 和 document 类型
+    type: string;
+    media_type: string;
+    data: string;
+  };
 }
 
 interface ClaudeMessage {
@@ -164,11 +171,37 @@ export class AgentService {
       title: sessionTitle,
     } as SSEInitData);
 
+    // 构建用户消息的 content 数组
+    const userContentBlocks: ContentBlock[] = [
+      { type: 'text', content: request.message },
+    ];
+
+    // 添加附件
+    if (request.attachments?.length) {
+      for (const att of request.attachments) {
+        if (att.mediaType.startsWith('image/')) {
+          userContentBlocks.push({
+            type: 'image',
+            mediaType: att.mediaType,
+            data: att.data,
+            name: att.name,
+          } as ImageBlock);
+        } else if (att.mediaType === 'application/pdf') {
+          userContentBlocks.push({
+            type: 'document',
+            mediaType: att.mediaType,
+            data: att.data,
+            name: att.name,
+          } as DocumentBlock);
+        }
+      }
+    }
+
     const userMessage: Message = {
       id: uuidv4(),
       sessionId,
       role: 'user',
-      content: [{ type: 'text', content: request.message }],
+      content: userContentBlocks,
       createdAt: new Date(),
     };
 
@@ -696,10 +729,33 @@ export class AgentService {
       if (m.role !== 'user' && m.role !== 'assistant') continue;
 
       let content: ClaudeContentBlock[] = [];
+      let hasNonTextBlocks = false;
 
       for (const block of m.content) {
         if (block.type === 'text') {
           content.push({ type: 'text', text: block.content });
+        } else if (block.type === 'image') {
+          // 图片块转换为 Claude API 格式
+          content.push({
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: block.mediaType,
+              data: block.data,
+            },
+          });
+          hasNonTextBlocks = true;
+        } else if (block.type === 'document') {
+          // 文档块转换为 Claude API 格式
+          content.push({
+            type: 'document',
+            source: {
+              type: 'base64',
+              media_type: block.mediaType,
+              data: block.data,
+            },
+          });
+          hasNonTextBlocks = true;
         } else if (block.type === 'tool_use') {
           content.push({
             type: 'tool_use',
@@ -707,11 +763,13 @@ export class AgentService {
             name: block.toolUse.name,
             input: block.toolUse.input,
           });
+          hasNonTextBlocks = true;
         } else if (block.type === 'tool_result') {
           // tool_result 需要作为单独的 user 消息
           if (content.length > 0) {
             result.push({ role: m.role as 'user' | 'assistant', content });
             content = [];  // 创建新数组，不影响已 push 的引用
+            hasNonTextBlocks = false;
           }
           result.push({
             role: 'user',
@@ -727,8 +785,8 @@ export class AgentService {
       }
 
       if (content.length > 0) {
-        // 如果只有文本，可以简化为字符串
-        if (content.length === 1 && content[0].type === 'text') {
+        // 如果只有文本且没有其他类型的块，可以简化为字符串
+        if (content.length === 1 && content[0].type === 'text' && !hasNonTextBlocks) {
           result.push({ role: m.role as 'user' | 'assistant', content: content[0].text || '' });
         } else {
           result.push({ role: m.role as 'user' | 'assistant', content });

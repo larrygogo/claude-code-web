@@ -4,6 +4,9 @@ import {
   ContentBlock,
   SessionListItem,
   SessionWithMessages,
+  ChatAttachment,
+  ImageBlock,
+  DocumentBlock,
 } from '@claude-web/shared';
 import {
   getSessions,
@@ -47,7 +50,7 @@ interface ChatState {
   forkSession: (sessionId: string, messageIndex: number) => Promise<string>;
   moveSessionToProject: (sessionId: string, projectId: string | null) => Promise<void>;
   updateSessionTitle: (sessionId: string, title: string) => Promise<void>;
-  sendMessage: (message: string, projectId?: string, token?: string) => Promise<void>;
+  sendMessage: (message: string, projectId?: string, token?: string, attachments?: ChatAttachment[]) => Promise<void>;
   abortStreaming: () => Promise<void>;
   clearError: () => void;
 }
@@ -175,7 +178,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  sendMessage: async (message: string, projectId?: string, token?: string) => {
+  sendMessage: async (message: string, projectId?: string, token?: string, attachments?: ChatAttachment[]) => {
     const { currentSession, streamingSessionId } = get();
     const currentSessionId = currentSession?.id || null;
 
@@ -189,13 +192,39 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return;
     }
 
+    // 构建用户消息内容块
+    const userContentBlocks: ContentBlock[] = [
+      { type: 'text', content: message },
+    ];
+
+    // 添加附件到内容块
+    if (attachments?.length) {
+      for (const att of attachments) {
+        if (att.mediaType.startsWith('image/')) {
+          userContentBlocks.push({
+            type: 'image',
+            mediaType: att.mediaType,
+            data: att.data,
+            name: att.name,
+          } as ImageBlock);
+        } else if (att.mediaType === 'application/pdf') {
+          userContentBlocks.push({
+            type: 'document',
+            mediaType: att.mediaType,
+            data: att.data,
+            name: att.name,
+          } as DocumentBlock);
+        }
+      }
+    }
+
     // Create a temporary user message for immediate display
     const tempUserMessageId = `temp-${Date.now()}`;
     const userMessage: Message = {
       id: tempUserMessageId,
       sessionId: currentSession?.id || '',
       role: 'user',
-      content: [{ type: 'text', content: message }],
+      content: userContentBlocks,
       createdAt: new Date(),
     };
 
@@ -421,6 +450,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           sessionId: currentSession?.id,
           projectId,
           message,
+          attachments: attachments?.length ? attachments : undefined,
         },
         handlers,
         token
