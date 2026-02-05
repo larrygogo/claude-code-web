@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Message, ContentBlock, ToolUse, ToolResult } from '@claude-web/shared';
-import { cn } from '@/lib/utils';
+import { cn, formatDate } from '@/lib/utils';
 import {
   ChevronDown,
   ChevronRight,
@@ -70,6 +70,9 @@ export function MessageItem({
               <span className="text-sm font-medium">Claude</span>
             </>
           )}
+          <span className="text-xs text-muted-foreground">
+            {formatDate(message.createdAt)}
+          </span>
         </div>
 
         {/* Content */}

@@ -7,7 +7,7 @@ import { useConfirm } from '@/contexts/ConfirmContext';
 import { SessionList } from '@/components/Session';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { LogOut, X, MessageSquare, List, FolderOpen, Settings } from 'lucide-react';
+import { LogOut, X, MessageSquare, List, FolderOpen, Settings, Shield } from 'lucide-react';
 
 interface SidebarProps {
   selectedSessionId?: string;
@@ -24,7 +24,7 @@ export function Sidebar({ selectedSessionId }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { isSidebarOpen, setSidebarOpen, isMobile } = useUIStore();
-  const { newSession } = useChatStore();
+  const { newSession, updateSessionTitle } = useChatStore();
   const { user, logout } = useAuthStore();
   const confirm = useConfirm();
 
@@ -42,6 +42,10 @@ export function Sidebar({ selectedSessionId }: SidebarProps) {
   const handleNewSession = async () => {
     const sessionId = await newSession();
     navigate(`/chat/${sessionId}`);
+  };
+
+  const handleRenameSession = async (sessionId: string, title: string) => {
+    await updateSessionTitle(sessionId, title);
   };
 
   const handleLogout = async () => {
@@ -109,11 +113,21 @@ export function Sidebar({ selectedSessionId }: SidebarProps) {
           <SessionList
             onSelectSession={handleSelectSession}
             onNewSession={handleNewSession}
+            onRenameSession={handleRenameSession}
             selectedSessionId={selectedSessionId}
           />
         </div>
 
         <div className="border-t p-4">
+          {user?.role === 'admin' && (
+            <button
+              onClick={() => navigate('/admin')}
+              className="w-full flex items-center gap-3 px-3 py-2 mb-2 rounded-lg text-sm transition-colors bg-primary/10 text-primary hover:bg-primary/20"
+            >
+              <Shield className="h-4 w-4" />
+              管理后台
+            </button>
+          )}
           <div className="flex items-center justify-between">
             <div className="truncate">
               <div className="text-sm font-medium">{user?.username}</div>

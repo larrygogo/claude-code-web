@@ -33,7 +33,7 @@ export default function SettingsPage() {
 
   return (
     <div className="p-4 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">设置</h1>
+      <h1 className="text-2xl font-bold mb-6 hidden md:block">设置</h1>
 
       <div className="space-y-6">
         <Card>
