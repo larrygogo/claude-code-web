@@ -257,13 +257,31 @@ export class AgentService {
         outputTokens,
       } as SSEDone);
     } catch (error) {
-      console.error('API Error details:', {
-        name: (error as Error).name,
-        message: (error as Error).message,
-        stack: (error as Error).stack,
-      });
-
       if ((error as Error).name === 'AbortError') {
+        // 用户主动中止，不是错误
+        console.log('Request aborted by user');
+
+        // 如果已经有部分内容，保存它
+        if (fullText) {
+          contentBlocks.push({ type: 'text', content: fullText });
+          const assistantMessage: Message = {
+            id: messageId,
+            sessionId: agentSession.sessionId,
+            role: 'assistant',
+            content: contentBlocks,
+            createdAt: new Date(),
+            model,
+            stopReason: 'aborted',
+            inputTokens,
+            outputTokens,
+          };
+          await sessionStorage.appendMessage(
+            agentSession.userId,
+            agentSession.sessionId,
+            assistantMessage
+          );
+        }
+
         this.sendEvent(res, 'done', {
           messageId,
           stopReason: 'aborted',
@@ -271,6 +289,10 @@ export class AgentService {
           outputTokens,
         } as SSEDone);
       } else {
+        console.error('API Error:', {
+          name: (error as Error).name,
+          message: (error as Error).message,
+        });
         throw error;
       }
     }
