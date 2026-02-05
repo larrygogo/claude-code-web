@@ -14,6 +14,8 @@ let accessToken = null;
 let refreshToken = null;
 let userId = null;
 let sessionId = null;
+let projectId = null;
+let planId = null;
 
 const results = {
   passed: 0,
@@ -362,6 +364,208 @@ async function testLogout() {
   });
 }
 
+// === 项目 API 测试 ===
+
+async function testCreateProject() {
+  await test('创建项目', async () => {
+    // 使用当前项目目录作为测试路径（确保路径存在）
+    const res = await request('/api/projects', {
+      method: 'POST',
+      body: {
+        name: '测试项目',
+        path: 'C:\\Users\\larry\\Desktop\\claude-web',
+      },
+    });
+
+    if (!res.ok) {
+      throw new Error(`创建项目失败: ${JSON.stringify(res.data)}`);
+    }
+
+    projectId = res.data.data?.id;
+    if (!projectId) {
+      throw new Error('响应缺少项目 ID');
+    }
+  });
+}
+
+async function testGetProjects() {
+  await test('获取项目列表', async () => {
+    const res = await request('/api/projects');
+
+    if (!res.ok) {
+      throw new Error(`获取项目列表失败: ${JSON.stringify(res.data)}`);
+    }
+
+    if (!Array.isArray(res.data.data)) {
+      throw new Error('响应应为数组');
+    }
+  });
+}
+
+async function testGetProject() {
+  await test('获取项目详情', async () => {
+    const res = await request(`/api/projects/${projectId}`);
+
+    if (!res.ok) {
+      throw new Error(`获取项目详情失败: ${JSON.stringify(res.data)}`);
+    }
+
+    if (res.data.data?.id !== projectId) {
+      throw new Error('项目 ID 不匹配');
+    }
+  });
+}
+
+async function testGetProjectContext() {
+  await test('获取项目上下文', async () => {
+    const res = await request(`/api/projects/${projectId}/context`);
+
+    if (!res.ok) {
+      throw new Error(`获取项目上下文失败: ${JSON.stringify(res.data)}`);
+    }
+  });
+}
+
+async function testDeleteProject() {
+  await test('删除项目', async () => {
+    const res = await request(`/api/projects/${projectId}`, {
+      method: 'DELETE',
+    });
+
+    if (!res.ok) {
+      throw new Error(`删除项目失败: ${JSON.stringify(res.data)}`);
+    }
+  });
+}
+
+// === 计划 API 测试 ===
+
+async function testCreatePlan() {
+  // 首先需要创建一个会话
+  const sessionRes = await request('/api/sessions', {
+    method: 'POST',
+    body: { title: '计划测试会话' },
+  });
+
+  if (!sessionRes.ok) {
+    throw new Error(`创建会话失败: ${JSON.stringify(sessionRes.data)}`);
+  }
+
+  const testSessionId = sessionRes.data.data?.id;
+
+  await test('创建计划', async () => {
+    const res = await request('/api/plans', {
+      method: 'POST',
+      body: {
+        sessionId: testSessionId,
+        title: '测试计划',
+        content: '# 测试计划内容\n\n- 步骤1\n- 步骤2',
+      },
+    });
+
+    if (!res.ok) {
+      throw new Error(`创建计划失败: ${JSON.stringify(res.data)}`);
+    }
+
+    planId = res.data.data?.id;
+    if (!planId) {
+      throw new Error('响应缺少计划 ID');
+    }
+  });
+}
+
+async function testGetPlans() {
+  await test('获取计划列表', async () => {
+    const res = await request('/api/plans');
+
+    if (!res.ok) {
+      throw new Error(`获取计划列表失败: ${JSON.stringify(res.data)}`);
+    }
+
+    if (!Array.isArray(res.data.data)) {
+      throw new Error('响应应为数组');
+    }
+  });
+}
+
+async function testGetPlan() {
+  await test('获取计划详情', async () => {
+    const res = await request(`/api/plans/${planId}`);
+
+    if (!res.ok) {
+      throw new Error(`获取计划详情失败: ${JSON.stringify(res.data)}`);
+    }
+
+    if (res.data.data?.id !== planId) {
+      throw new Error('计划 ID 不匹配');
+    }
+  });
+}
+
+async function testUpdatePlan() {
+  await test('更新计划', async () => {
+    const res = await request(`/api/plans/${planId}`, {
+      method: 'PATCH',
+      body: {
+        title: '更新后的计划标题',
+        status: 'approved',
+      },
+    });
+
+    if (!res.ok) {
+      throw new Error(`更新计划失败: ${JSON.stringify(res.data)}`);
+    }
+
+    if (res.data.data?.title !== '更新后的计划标题') {
+      throw new Error('计划标题未更新');
+    }
+  });
+}
+
+async function testExecutePlan() {
+  await test('执行计划', async () => {
+    const res = await request(`/api/plans/${planId}/execute`, {
+      method: 'POST',
+    });
+
+    if (!res.ok) {
+      throw new Error(`执行计划失败: ${JSON.stringify(res.data)}`);
+    }
+
+    if (res.data.data?.status !== 'executing') {
+      throw new Error('计划状态未更新为 executing');
+    }
+  });
+}
+
+async function testCompletePlan() {
+  await test('完成计划', async () => {
+    const res = await request(`/api/plans/${planId}/complete`, {
+      method: 'POST',
+    });
+
+    if (!res.ok) {
+      throw new Error(`完成计划失败: ${JSON.stringify(res.data)}`);
+    }
+
+    if (res.data.data?.status !== 'completed') {
+      throw new Error('计划状态未更新为 completed');
+    }
+  });
+}
+
+async function testDeletePlan() {
+  await test('删除计划', async () => {
+    const res = await request(`/api/plans/${planId}`, {
+      method: 'DELETE',
+    });
+
+    if (!res.ok) {
+      throw new Error(`删除计划失败: ${JSON.stringify(res.data)}`);
+    }
+  });
+}
+
 async function runAllTests() {
   console.log('\n========================================');
   console.log('    Claude Code Web API 自动化测试');
@@ -398,6 +602,24 @@ async function runAllTests() {
   log('\n--- 会话操作测试 ---');
   await testForkSession();
   await testDeleteSession();
+
+  // 项目测试
+  log('\n--- 项目测试 ---');
+  await testCreateProject();
+  await testGetProjects();
+  await testGetProject();
+  await testGetProjectContext();
+  await testDeleteProject();
+
+  // 计划测试
+  log('\n--- 计划测试 ---');
+  await testCreatePlan();
+  await testGetPlans();
+  await testGetPlan();
+  await testUpdatePlan();
+  await testExecutePlan();
+  await testCompletePlan();
+  await testDeletePlan();
 
   // 登出测试
   log('\n--- 登出测试 ---');
