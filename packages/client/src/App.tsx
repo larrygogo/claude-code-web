@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
+import { useSystemStore } from '@/stores/systemStore';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import { ConfirmProvider } from '@/contexts/ConfirmContext';
 
@@ -37,13 +38,15 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 export default function App() {
   const { initialize, isInitialized, user } = useAuthStore();
   const { setIsMobile } = useUIStore();
+  const { fetchConfig } = useSystemStore();
   const isMobile = useIsMobile();
 
   const theme = user?.settings?.theme || 'system';
 
   useEffect(() => {
     initialize();
-  }, [initialize]);
+    fetchConfig();
+  }, [initialize, fetchConfig]);
 
   useEffect(() => {
     setIsMobile(isMobile);

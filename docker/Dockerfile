@@ -56,21 +56,19 @@ EXPOSE 3001
 
 CMD ["node", "dist/index.js"]
 
-# Client production stage
-FROM node:20-alpine AS client
+# Client production stage - 使用 nginx 服务 Vite 静态文件
+FROM nginx:alpine AS client
 
-WORKDIR /app
+# 复制 nginx 配置
+COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copy built Next.js standalone output
-COPY --from=builder /app/packages/client/.next/standalone ./
-COPY --from=builder /app/packages/client/.next/static ./packages/client/.next/static
-COPY --from=builder /app/packages/client/public ./packages/client/public
+# 复制构建产物
+COPY --from=builder /app/packages/client/dist /usr/share/nginx/html
 
-WORKDIR /app/packages/client
-
-ENV NODE_ENV=production
-ENV PORT=3000
+# 复制环境变量注入脚本
+COPY docker/env.sh /docker-entrypoint.d/40-env.sh
+RUN chmod +x /docker-entrypoint.d/40-env.sh
 
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+CMD ["nginx", "-g", "daemon off;"]

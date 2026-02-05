@@ -5,6 +5,7 @@ import { useChatStore } from '@/stores/chatStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useConfirm } from '@/contexts/ConfirmContext';
 import { SessionList } from '@/components/Session';
+import { OperationModeIndicator } from '@/components/OperationModeIndicator';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { LogOut, X, MessageSquare, List, FolderOpen, Settings, Shield } from 'lucide-react';
@@ -118,11 +119,12 @@ export function Sidebar({ selectedSessionId }: SidebarProps) {
           />
         </div>
 
-        <div className="border-t p-4">
+        <div className="border-t p-4 space-y-3">
+          <OperationModeIndicator />
           {user?.role === 'admin' && (
             <button
               onClick={() => navigate('/admin')}
-              className="w-full flex items-center gap-3 px-3 py-2 mb-2 rounded-lg text-sm transition-colors bg-primary/10 text-primary hover:bg-primary/20"
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors bg-primary/10 text-primary hover:bg-primary/20"
             >
               <Shield className="h-4 w-4" />
               管理后台
