@@ -12,7 +12,10 @@
     "clean": "turbo run clean && rimraf node_modules",
     "db:generate": "pnpm --filter server db:generate",
     "db:migrate": "pnpm --filter server db:migrate",
-    "db:push": "pnpm --filter server db:push"
+    "db:push": "pnpm --filter server db:push",
+    "test": "node tests/run-all-tests.mjs",
+    "test:api": "node tests/api-test.mjs",
+    "test:e2e": "node tests/e2e-test.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

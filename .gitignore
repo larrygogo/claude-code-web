@@ -47,7 +47,11 @@ packages/server/data
 **/users/*/sessions/*.jsonl
 **/users/*/plans/*.md
 
-# Test files
+# Test output files
 test-result.png
 test-error.png
+tests/e2e-result.png
+tests/e2e-error.png
+
+# Legacy test files
 test-browser.mjs
