@@ -6,6 +6,7 @@ import {
   SSEThinkingDelta,
   SSEToolUse,
   SSEToolResult,
+  SSETitleUpdate,
   SSEError,
   SSEDone,
   ChatRequest,
@@ -42,6 +43,7 @@ export type SSEEventHandler = {
   onThinkingDelta?: (data: SSEThinkingDelta) => void;
   onToolUse?: (data: SSEToolUse) => void;
   onToolResult?: (data: SSEToolResult) => void;
+  onTitleUpdate?: (data: SSETitleUpdate) => void;
   onError?: (data: SSEError) => void;
   onDone?: (data: SSEDone) => void;
 };
@@ -166,6 +168,10 @@ function handleEvent(type: SSEEventType, data: unknown, handlers: SSEEventHandle
       break;
     case 'tool_result':
       handlers.onToolResult?.(data as SSEToolResult);
+      break;
+    case 'title_update':
+      console.log('[SSE] Title update:', data);
+      handlers.onTitleUpdate?.(data as SSETitleUpdate);
       break;
     case 'error':
       console.log('[SSE] Error:', data);

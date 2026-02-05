@@ -10,6 +10,7 @@ import {
   SSEThinkingDelta,
   SSEToolUse,
   SSEToolResult,
+  SSETitleUpdate,
   SSEError,
   SSEDone,
   ChatRequest,
@@ -20,6 +21,7 @@ import {
 import { sessionStorage } from '../storage/SessionStorage.js';
 import { sessionService } from './SessionService.js';
 import { projectService } from './ProjectService.js';
+import { adminService } from './AdminService.js';
 import { config } from '../config.js';
 import { executeTool, getToolDefinitions } from '../tools/index.js';
 
@@ -53,12 +55,39 @@ const activeSessions = new Map<string, AgentSession>();
 const MAX_TOOL_ITERATIONS = 20;
 
 export class AgentService {
-  private baseUrl: string;
-  private apiKey: string;
+  private defaultBaseUrl: string;
+  private defaultApiKey: string;
+  private defaultModel: string;
 
   constructor() {
-    this.baseUrl = config.anthropic.baseUrl || 'https://api.anthropic.com';
-    this.apiKey = config.anthropic.apiKey;
+    this.defaultBaseUrl = config.anthropic.baseUrl || 'https://api.anthropic.com';
+    this.defaultApiKey = config.anthropic.apiKey;
+    this.defaultModel = config.anthropic.model;
+  }
+
+  /**
+   * 获取模型配置（优先从数据库，回退到环境变量）
+   */
+  private async getModelConfig(): Promise<{ baseUrl: string; apiKey: string; model: string }> {
+    try {
+      const dbConfig = await adminService.getActiveModelConfig();
+      if (dbConfig && dbConfig.apiKey) {
+        return {
+          baseUrl: dbConfig.apiEndpoint || this.defaultBaseUrl,
+          apiKey: dbConfig.apiKey,
+          model: dbConfig.modelId,
+        };
+      }
+    } catch (error) {
+      console.warn('[AgentService] Failed to get model config from database, using env fallback:', error);
+    }
+
+    // 回退到环境变量配置
+    return {
+      baseUrl: this.defaultBaseUrl,
+      apiKey: this.defaultApiKey,
+      model: this.defaultModel,
+    };
   }
 
   async streamChat(
@@ -74,6 +103,8 @@ export class AgentService {
 
     let sessionId = request.sessionId;
     let sessionTitle: string | undefined;
+    let isNewSession = false;
+    const userMessageText = request.message;
 
     if (!sessionId) {
       const title = this.generateTitle(request.message);
@@ -83,6 +114,7 @@ export class AgentService {
       });
       sessionId = session.id;
       sessionTitle = title;
+      isNewSession = true;
     } else {
       // 已有会话，检查是否需要自动生成标题（标题仍为默认值时）
       try {
@@ -90,6 +122,7 @@ export class AgentService {
         if (existingSession.title === 'New Chat') {
           sessionTitle = this.generateTitle(request.message);
           await sessionService.updateSessionTitle(userId, sessionId, sessionTitle);
+          isNewSession = true;
         }
       } catch {
         // 忽略标题更新失败
@@ -170,6 +203,21 @@ export class AgentService {
         message: error instanceof Error ? error.message : 'Unknown error',
       } as SSEError);
     } finally {
+      // 新建会话时，在 res.end() 之前异步生成 AI 标题
+      if (isNewSession && sessionId) {
+        try {
+          const aiTitle = await this.generateTitleWithAI(userMessageText);
+          if (aiTitle) {
+            await sessionService.updateSessionTitle(userId, sessionId, aiTitle);
+            this.sendEvent(res, 'title_update', {
+              sessionId,
+              title: aiTitle,
+            } as SSETitleUpdate);
+          }
+        } catch (error) {
+          console.warn('[AgentService] AI title generation failed, keeping fallback title:', error);
+        }
+      }
       activeSessions.delete(sessionId);
       res.end();
     }
@@ -407,7 +455,10 @@ export class AgentService {
     let stopReason = 'end_turn';
     let inputTokens = 0;
     let outputTokens = 0;
-    let model = config.anthropic.model;
+
+    // 获取模型配置（优先从数据库）
+    const modelConfig = await this.getModelConfig();
+    let model = modelConfig.model;
 
     // 当前文本块的累积内容
     let currentTextContent = '';
@@ -425,7 +476,7 @@ export class AgentService {
     try {
       // 构建请求 body
       const requestBody: Record<string, unknown> = {
-        model: config.anthropic.model,
+        model: modelConfig.model,
         max_tokens: needsThinking ? 16000 : 8192,
         system: systemPrompt,
         messages: messages,
@@ -441,11 +492,11 @@ export class AgentService {
         };
       }
 
-      const response = await fetch(`${this.baseUrl}/v1/messages`, {
+      const response = await fetch(`${modelConfig.baseUrl}/v1/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': this.apiKey,
+          'x-api-key': modelConfig.apiKey,
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify(requestBody),
@@ -715,6 +766,67 @@ export class AgentService {
     }
 
     return trimmed.substring(0, maxLength - 3) + '...';
+  }
+
+  /**
+   * 使用 AI 生成会话标题
+   * 带 8 秒超时，失败时返回 null（保留原标题）
+   */
+  private async generateTitleWithAI(message: string): Promise<string | null> {
+    const modelConfig = await this.getModelConfig();
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
+    try {
+      const response = await fetch(`${modelConfig.baseUrl}/v1/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': modelConfig.apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: modelConfig.model,
+          max_tokens: 50,
+          stream: false,
+          system: '你是标题生成器。根据用户的消息生成一个简洁的会话标题。要求：2-20个字，不加标点符号，不加引号，不加前缀，直接输出标题文本。',
+          messages: [
+            { role: 'user', content: message },
+          ],
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        console.warn('[AgentService] AI title API returned:', response.status);
+        return null;
+      }
+
+      const data = await response.json() as {
+        content?: Array<{ type: string; text?: string }>;
+      };
+      const text = data.content?.[0]?.text?.trim();
+
+      if (text && text.length >= 2 && text.length <= 30) {
+        // 去除可能的引号和标点
+        const cleaned = text.replace(/^["'"'「『]+|["'"'」』。，！？.!?,]+$/g, '');
+        console.log(`[AgentService] AI generated title: "${cleaned}"`);
+        return cleaned || null;
+      }
+
+      return null;
+    } catch (error) {
+      clearTimeout(timeout);
+      if ((error as Error).name === 'AbortError') {
+        console.warn('[AgentService] AI title generation timed out');
+      } else {
+        console.warn('[AgentService] AI title generation error:', error);
+      }
+      return null;
+    }
   }
 
   /**
