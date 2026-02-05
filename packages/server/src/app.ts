@@ -8,6 +8,10 @@ import sessionsRouter from './api/sessions.js';
 import projectsRouter from './api/projects.js';
 import plansRouter from './api/plans.js';
 import adminRouter from './api/admin.js';
+import rulesRouter from './api/rules.js';
+import skillsRouter from './api/skills.js';
+import mcpRouter from './api/mcp.js';
+import configRouter from './api/config.js';
 
 export function createApp(): express.Application {
   const app = express();
@@ -25,6 +29,10 @@ export function createApp(): express.Application {
   app.use('/api/projects', projectsRouter);
   app.use('/api/plans', plansRouter);
   app.use('/api/admin', adminRouter);
+  app.use('/api/rules', rulesRouter);
+  app.use('/api/skills', skillsRouter);
+  app.use('/api/mcp', mcpRouter);
+  app.use('/api/config', configRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

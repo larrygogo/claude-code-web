@@ -8,18 +8,21 @@ datasource db {
 }
 
 model User {
-  id           String    @id @default(uuid())
-  email        String    @unique
+  id           String      @id @default(uuid())
+  email        String      @unique
   username     String
   passwordHash String
-  role         String    @default("user")   // user | admin
-  status       String    @default("active") // active | disabled
-  settings     String    @default("{\"theme\":\"system\"}")
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  role         String      @default("user")   // user | admin
+  status       String      @default("active") // active | disabled
+  settings     String      @default("{\"theme\":\"system\"}")
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
   sessions     Session[]
   projects     Project[]
   plans        Plan[]
+  rules        UserRule[]
+  skills       UserSkill[]
+  mcpServers   McpServer[]
 
   @@map("users")
 }
@@ -109,4 +112,55 @@ model ModelConfig {
   updatedAt   DateTime @updatedAt
 
   @@map("model_configs")
+}
+
+model UserRule {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String   // 规则名称，如 "git-workflow"
+  content   String   // Markdown 内容
+  enabled   Boolean  @default(true)
+  priority  Int      @default(0) // 排序优先级
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId, enabled])
+  @@map("user_rules")
+}
+
+model UserSkill {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String   // 命令名称，如 "my-commit"
+  description String?  // 命令描述
+  prompt      String   // 执行时的提示词模板
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("user_skills")
+}
+
+model McpServer {
+  id        String   @id @default(uuid())
+  userId    String?  // null = 全局（管理员配置）
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String   // 服务器名称
+  command   String   // 启动命令
+  args      String   @default("[]") // JSON 数组格式的命令参数
+  env       String?  // JSON 格式的环境变量
+  enabled   Boolean  @default(true)
+  status    String   @default("stopped") // stopped, starting, running, error
+  lastError String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("mcp_servers")
 }

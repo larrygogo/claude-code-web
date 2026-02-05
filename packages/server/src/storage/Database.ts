@@ -1,15 +1,18 @@
 import { PrismaClient } from '@prisma/client';
 
-let prisma: PrismaClient;
+let prismaInstance: PrismaClient;
 
 export function getDatabase(): PrismaClient {
-  if (!prisma) {
-    prisma = new PrismaClient({
+  if (!prismaInstance) {
+    prismaInstance = new PrismaClient({
       log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
     });
   }
-  return prisma;
+  return prismaInstance;
 }
+
+// 导出 prisma 实例供其他服务使用
+export const prisma = getDatabase();
 
 export async function connectDatabase(): Promise<void> {
   const db = getDatabase();
@@ -18,8 +21,8 @@ export async function connectDatabase(): Promise<void> {
 }
 
 export async function disconnectDatabase(): Promise<void> {
-  if (prisma) {
-    await prisma.$disconnect();
+  if (prismaInstance) {
+    await prismaInstance.$disconnect();
     console.log('Database disconnected');
   }
 }
