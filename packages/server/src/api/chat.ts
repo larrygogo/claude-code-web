@@ -2,6 +2,7 @@ import { Router, Response, type Router as RouterType } from 'express';
 import { z } from 'zod';
 import { ApiResponse } from '@claude-web/shared';
 import { agentService } from '../services/AgentService.js';
+import { skillsService } from '../services/SkillsService.js';
 import { authMiddleware, requireUser } from '../middleware/auth.js';
 
 const router: RouterType = Router();
@@ -24,6 +25,23 @@ const chatRequestSchema = z.object({
 router.post('/stream', authMiddleware, async (req, res: Response) => {
   const { userId } = requireUser(req);
   const request = chatRequestSchema.parse(req.body);
+
+  // 检查是否为 /command 格式
+  const { isCommand, command, args } = skillsService.parseCommand(request.message);
+  if (isCommand) {
+    // 处理 /help 命令特殊情况
+    if (command === 'help') {
+      const helpMessage = await skillsService.generateHelpMessage(userId);
+      request.message = helpMessage;
+    } else {
+      // 获取命令的提示词
+      const skillPrompt = await skillsService.getSkillPrompt(userId, command, args);
+      if (skillPrompt) {
+        request.message = skillPrompt;
+      }
+      // 如果找不到命令，保持原消息不变，让 Claude 处理
+    }
+  }
 
   let isCompleted = false;
   let activeSessionId: string | undefined = request.sessionId;

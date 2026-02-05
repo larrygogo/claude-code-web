@@ -257,3 +257,81 @@ export async function deleteAdminModel(id: string) {
 export async function getSystemConfig() {
   return apiClient.get<SystemConfig>('/api/system/config');
 }
+
+// ==================== Rules API ====================
+
+export async function getRules() {
+  return apiClient.get<import('@claude-web/shared').UserRule[]>('/api/rules');
+}
+
+export async function getRule(id: string) {
+  return apiClient.get<import('@claude-web/shared').UserRule>(`/api/rules/${id}`);
+}
+
+export async function createRule(input: import('@claude-web/shared').CreateRuleRequest) {
+  return apiClient.post<import('@claude-web/shared').UserRule>('/api/rules', input);
+}
+
+export async function updateRule(id: string, input: import('@claude-web/shared').UpdateRuleRequest) {
+  return apiClient.put<import('@claude-web/shared').UserRule>(`/api/rules/${id}`, input);
+}
+
+export async function deleteRule(id: string) {
+  return apiClient.delete<null>(`/api/rules/${id}`);
+}
+
+export async function toggleRule(id: string) {
+  return apiClient.put<import('@claude-web/shared').UserRule>(`/api/rules/${id}/toggle`);
+}
+
+// ==================== Skills API ====================
+
+export async function getSkills() {
+  return apiClient.get<import('@claude-web/shared').Skill[]>('/api/skills');
+}
+
+export async function createSkill(input: import('@claude-web/shared').CreateSkillRequest) {
+  return apiClient.post<import('@claude-web/shared').UserSkill>('/api/skills', input);
+}
+
+export async function updateSkill(id: string, input: import('@claude-web/shared').UpdateSkillRequest) {
+  return apiClient.put<import('@claude-web/shared').UserSkill>(`/api/skills/${id}`, input);
+}
+
+export async function deleteSkill(id: string) {
+  return apiClient.delete<null>(`/api/skills/${id}`);
+}
+
+export async function executeSkill(skillName: string, args?: string, sessionId?: string) {
+  return apiClient.post<{ executed: boolean }>(`/api/skills/${skillName}/execute`, { args, sessionId });
+}
+
+// ==================== MCP API ====================
+
+export async function getMcpServers() {
+  return apiClient.get<import('@claude-web/shared').McpServer[]>('/api/mcp/servers');
+}
+
+export async function createMcpServer(input: import('@claude-web/shared').CreateMcpServerRequest) {
+  return apiClient.post<import('@claude-web/shared').McpServer>('/api/mcp/servers', input);
+}
+
+export async function updateMcpServer(id: string, input: import('@claude-web/shared').UpdateMcpServerRequest) {
+  return apiClient.put<import('@claude-web/shared').McpServer>(`/api/mcp/servers/${id}`, input);
+}
+
+export async function deleteMcpServer(id: string) {
+  return apiClient.delete<null>(`/api/mcp/servers/${id}`);
+}
+
+export async function startMcpServer(id: string) {
+  return apiClient.post<import('@claude-web/shared').McpServer>(`/api/mcp/servers/${id}/start`);
+}
+
+export async function stopMcpServer(id: string) {
+  return apiClient.post<import('@claude-web/shared').McpServer>(`/api/mcp/servers/${id}/stop`);
+}
+
+export async function getMcpServerTools(id: string) {
+  return apiClient.get<import('@claude-web/shared').McpTool[]>(`/api/mcp/servers/${id}/tools`);
+}

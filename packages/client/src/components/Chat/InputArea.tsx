@@ -5,7 +5,9 @@ import { useAuthStore } from '@/stores/authStore';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import { Send, Square, Paperclip, X, FileText, Image as ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ChatAttachment } from '@claude-web/shared';
+import { ChatAttachment, Skill } from '@claude-web/shared';
+import { CommandPalette, getFilteredSkills } from './CommandPalette';
+import { getSkills } from '@/lib/api';
 
 // 文件类型和大小限制
 const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
@@ -38,12 +40,23 @@ export function InputArea({ projectId, onSuggestionClick }: InputAreaProps) {
   const [input, setInput] = useState('');
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [commandFilter, setCommandFilter] = useState('');
+  const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
+  const [skills, setSkills] = useState<Skill[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { sendMessage, abortStreaming, streamingSessionId, currentSession } = useChatStore();
   const { tokens } = useAuthStore();
   const accessToken = tokens?.accessToken;
   const isMobile = useIsMobile();
+
+  // 加载 skills
+  useEffect(() => {
+    if (accessToken) {
+      getSkills().then(setSkills).catch(console.error);
+    }
+  }, [accessToken]);
 
   // 只有当前会话正在流式传输时才禁用输入
   const isStreaming = streamingSessionId !== null && streamingSessionId === currentSession?.id;
@@ -164,10 +177,76 @@ export function InputArea({ projectId, onSuggestionClick }: InputAreaProps) {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // 如果命令面板打开，处理键盘导航
+    if (showCommandPalette) {
+      const filteredSkills = getFilteredSkills(skills, commandFilter);
+
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowCommandPalette(false);
+        return;
+      }
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedCommandIndex(i => Math.min(i + 1, filteredSkills.length - 1));
+        return;
+      }
+
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedCommandIndex(i => Math.max(i - 1, 0));
+        return;
+      }
+
+      // 回车键选中命令，而不是发送
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        if (filteredSkills.length > 0 && filteredSkills[selectedCommandIndex]) {
+          handleSelectCommand(filteredSkills[selectedCommandIndex]);
+        }
+        return;
+      }
+    }
+
+    // 命令面板未打开时，回车发送消息
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
     }
+  };
+
+  // 监控输入变化，检测 / 命令
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setInput(value);
+
+    // 检查是否以 / 开头
+    if (value.startsWith('/')) {
+      const match = value.match(/^\/([a-z0-9-]*)$/i);
+      if (match) {
+        const newFilter = match[1];
+        // 如果 filter 变化，重置选中索引
+        if (newFilter !== commandFilter) {
+          setSelectedCommandIndex(0);
+        }
+        setCommandFilter(newFilter);
+        setShowCommandPalette(true);
+      } else if (value.includes(' ')) {
+        // 如果有空格，说明命令已输入完成，关闭面板
+        setShowCommandPalette(false);
+      }
+    } else {
+      setShowCommandPalette(false);
+    }
+  };
+
+  // 选择命令
+  const handleSelectCommand = (skill: Skill) => {
+    setInput(`/${skill.name} `);
+    setShowCommandPalette(false);
+    setSelectedCommandIndex(0);
+    textareaRef.current?.focus();
   };
 
   // Expose setInput for parent component
@@ -261,23 +340,40 @@ export function InputArea({ projectId, onSuggestionClick }: InputAreaProps) {
               </Button>
             </div>
 
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              onPaste={handlePaste}
-              placeholder="给 Claude 发送消息..."
-              disabled={isStreaming}
-              rows={1}
-              className={cn(
-                'flex-1 resize-none bg-transparent px-2 py-3 pr-12 text-sm',
-                'placeholder:text-muted-foreground',
-                'focus:outline-none',
-                'disabled:cursor-not-allowed disabled:opacity-50',
-                'min-h-[48px] max-h-[200px]'
-              )}
-            />
+            <div className="flex-1 relative">
+              {/* Command Palette */}
+              <CommandPalette
+                isOpen={showCommandPalette}
+                filter={commandFilter}
+                skills={skills}
+                selectedIndex={selectedCommandIndex}
+                onSelectedIndexChange={setSelectedCommandIndex}
+                onSelect={handleSelectCommand}
+                onClose={() => {
+                  setShowCommandPalette(false);
+                  setSelectedCommandIndex(0);
+                }}
+                position="top"
+              />
+
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
+                placeholder="给 Claude 发送消息... (输入 / 查看命令)"
+                disabled={isStreaming}
+                rows={1}
+                className={cn(
+                  'w-full resize-none bg-transparent px-2 py-3 pr-12 text-sm',
+                  'placeholder:text-muted-foreground',
+                  'focus:outline-none',
+                  'disabled:cursor-not-allowed disabled:opacity-50',
+                  'min-h-[48px] max-h-[200px]'
+                )}
+              />
+            </div>
 
             {/* Send/Stop button */}
             <div className="pr-2 pb-2">

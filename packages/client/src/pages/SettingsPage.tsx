@@ -1,10 +1,10 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useConfirm } from '@/contexts/ConfirmContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { LogOut, User, Moon, Sun, Monitor } from 'lucide-react';
+import { LogOut, User, Moon, Sun, Monitor, FileText, Zap, Plug, ChevronRight } from 'lucide-react';
 
 export default function SettingsPage() {
   const navigate = useNavigate();
@@ -99,6 +99,61 @@ export default function SettingsPage() {
                 跟随系统
               </Button>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* 高级设置区域 */}
+        <Card>
+          <CardHeader>
+            <CardTitle>高级设置</CardTitle>
+            <CardDescription>自定义 Claude 的行为和功能</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Link
+              to="/settings/rules"
+              className="flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <FileText className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <div className="font-medium">全局规则</div>
+                  <div className="text-sm text-muted-foreground">
+                    自定义系统提示词规则
+                  </div>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            </Link>
+            <Link
+              to="/settings/skills"
+              className="flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <Zap className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <div className="font-medium">快捷命令 (Skills)</div>
+                  <div className="text-sm text-muted-foreground">
+                    使用 /command 快速执行任务
+                  </div>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            </Link>
+            <Link
+              to="/settings/mcp"
+              className="flex items-center justify-between p-3 rounded-lg hover:bg-muted transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <Plug className="h-5 w-5 text-muted-foreground" />
+                <div>
+                  <div className="font-medium">MCP 插件</div>
+                  <div className="text-sm text-muted-foreground">
+                    管理 Model Context Protocol 服务器
+                  </div>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            </Link>
           </CardContent>
         </Card>
 

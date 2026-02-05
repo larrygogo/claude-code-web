@@ -14,6 +14,9 @@ import ProjectsPage from '@/pages/ProjectsPage';
 import ProjectDetailPage from '@/pages/ProjectDetailPage';
 import PlansPage from '@/pages/PlansPage';
 import SettingsPage from '@/pages/SettingsPage';
+import RulesPage from '@/pages/settings/RulesPage';
+import SkillsPage from '@/pages/settings/SkillsPage';
+import McpPage from '@/pages/settings/McpPage';
 import MainLayout from '@/components/Layout/MainLayout';
 import { AdminRoute } from '@/components/AdminRoute';
 import { AdminLayout } from '@/components/Layout/AdminLayout';
@@ -100,6 +103,9 @@ export default function App() {
           <Route path="projects/:projectId" element={<ProjectDetailPage />} />
           <Route path="plans" element={<PlansPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="settings/rules" element={<RulesPage />} />
+          <Route path="settings/skills" element={<SkillsPage />} />
+          <Route path="settings/mcp" element={<McpPage />} />
         </Route>
         <Route
           path="/admin"
