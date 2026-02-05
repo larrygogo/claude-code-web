@@ -90,9 +90,17 @@ export interface SSEDone {
   outputTokens: number;
 }
 
+export interface ChatAttachment {
+  name: string;       // 文件名
+  mediaType: string;  // MIME 类型
+  data: string;       // base64 编码数据（不含 data:... 前缀）
+  size: number;       // 原始文件大小（字节）
+}
+
 export interface ChatRequest {
   sessionId?: string;
   projectId?: string;
   message: string;
+  attachments?: ChatAttachment[];  // 附件列表
   permissionMode?: 'plan' | 'acceptEdits' | 'default';
 }

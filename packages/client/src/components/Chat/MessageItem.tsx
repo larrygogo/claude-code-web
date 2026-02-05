@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { Message, ContentBlock, ToolUse, ToolResult } from '@claude-web/shared';
+import { Message, ContentBlock, ToolUse, ToolResult, ImageBlock as ImageBlockType, DocumentBlock as DocumentBlockType } from '@claude-web/shared';
 import { cn, formatDate } from '@/lib/utils';
 import {
   ChevronDown,
@@ -135,6 +135,10 @@ function ContentBlockRenderer({
       return <TextBlock content={block.content} isStreaming={isStreaming} />;
     case 'thinking':
       return <ThinkingBlock content={block.content} />;
+    case 'image':
+      return <ImageBlockView block={block as ImageBlockType} />;
+    case 'document':
+      return <DocumentBlockView block={block as DocumentBlockType} />;
     case 'tool_use': {
       // Check if this tool use has a corresponding result
       const hasResult = allBlocks?.some(
@@ -268,6 +272,36 @@ function ThinkingBlock({ content }: { content: string }) {
           {content}
         </div>
       )}
+    </div>
+  );
+}
+
+function ImageBlockView({ block }: { block: ImageBlockType }) {
+  const handleClick = () => {
+    // 点击图片在新标签页打开
+    window.open(`data:${block.mediaType};base64,${block.data}`, '_blank');
+  };
+
+  return (
+    <div className="inline-block">
+      <img
+        src={`data:${block.mediaType};base64,${block.data}`}
+        alt={block.name || '上传的图片'}
+        className="max-w-xs max-h-64 rounded-lg border object-contain cursor-pointer hover:opacity-90 transition-opacity"
+        onClick={handleClick}
+      />
+      {block.name && (
+        <p className="text-xs text-muted-foreground mt-1">{block.name}</p>
+      )}
+    </div>
+  );
+}
+
+function DocumentBlockView({ block }: { block: DocumentBlockType }) {
+  return (
+    <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border bg-muted/50">
+      <FileText className="h-5 w-5 text-red-500 flex-shrink-0" />
+      <span className="text-sm">{block.name || 'document.pdf'}</span>
     </div>
   );
 }

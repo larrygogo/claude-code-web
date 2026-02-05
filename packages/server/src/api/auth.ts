@@ -1,10 +1,10 @@
-import { Router } from 'express';
+import { Router, type Router as RouterType } from 'express';
 import { z } from 'zod';
 import { ApiResponse, AuthResponse, User, UserSettings } from '@claude-web/shared';
 import { authService } from '../services/AuthService.js';
 import { authMiddleware, requireUser } from '../middleware/auth.js';
 
-const router = Router();
+const router: RouterType = Router();
 
 const registerSchema = z.object({
   email: z.string().email('Invalid email address'),

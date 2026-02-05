@@ -45,7 +45,21 @@ export interface ToolResultBlock {
   toolResult: ToolResult;
 }
 
-export type ContentBlock = ThinkingBlock | TextBlock | ToolUseBlock | ToolResultBlock;
+export interface ImageBlock {
+  type: 'image';
+  mediaType: string;  // 'image/jpeg', 'image/png', 'image/gif', 'image/webp'
+  data: string;       // base64 编码
+  name?: string;      // 原始文件名
+}
+
+export interface DocumentBlock {
+  type: 'document';
+  mediaType: string;  // 'application/pdf'
+  data: string;       // base64 编码
+  name?: string;      // 原始文件名
+}
+
+export type ContentBlock = ThinkingBlock | TextBlock | ImageBlock | DocumentBlock | ToolUseBlock | ToolResultBlock;
 
 export interface Message {
   id: string;

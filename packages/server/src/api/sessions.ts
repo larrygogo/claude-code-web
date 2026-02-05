@@ -1,10 +1,10 @@
-import { Router } from 'express';
+import { Router, type Router as RouterType } from 'express';
 import { z } from 'zod';
 import { sessionService } from '../services/SessionService.js';
 import { authMiddleware, requireUser } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/error.js';
 
-const router = Router();
+const router: RouterType = Router();
 
 const createSessionSchema = z.object({
   projectId: z.string().uuid().optional(),

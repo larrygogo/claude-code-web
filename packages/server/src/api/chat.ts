@@ -1,15 +1,23 @@
-import { Router, Response } from 'express';
+import { Router, Response, type Router as RouterType } from 'express';
 import { z } from 'zod';
 import { ApiResponse } from '@claude-web/shared';
 import { agentService } from '../services/AgentService.js';
 import { authMiddleware, requireUser } from '../middleware/auth.js';
 
-const router = Router();
+const router: RouterType = Router();
+
+const attachmentSchema = z.object({
+  name: z.string(),
+  mediaType: z.string(),
+  data: z.string(),
+  size: z.number().max(10 * 1024 * 1024),  // 单文件最大 10MB
+});
 
 const chatRequestSchema = z.object({
   sessionId: z.string().uuid().optional(),
   projectId: z.string().uuid().optional(),
   message: z.string().min(1, 'Message is required'),
+  attachments: z.array(attachmentSchema).max(10).optional(),  // 最多 10 个附件
   permissionMode: z.enum(['plan', 'acceptEdits', 'default']).optional(),
 });
 

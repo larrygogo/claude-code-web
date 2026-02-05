@@ -90,3 +90,64 @@ export function truncate(str: string, maxLength: number): string {
   }
   return str.substring(0, maxLength - 3) + '...';
 }
+
+/**
+ * 格式化文件大小
+ */
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}K`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)}M`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)}G`;
+}
+
+/**
+ * 解析大小字符串 (如 "+1M", "-100K")
+ * 返回字节数，如果格式无效返回 null
+ */
+export function parseSize(sizeStr: string): number | null {
+  const match = sizeStr.match(/^([+\-]?)(\d+(?:\.\d+)?)\s*([BKMGT])?$/i);
+  if (!match) return null;
+
+  let bytes = parseFloat(match[2]);
+  const unit = (match[3] || 'B').toUpperCase();
+
+  const multipliers: Record<string, number> = {
+    'B': 1,
+    'K': 1024,
+    'M': 1024 * 1024,
+    'G': 1024 * 1024 * 1024,
+    'T': 1024 * 1024 * 1024 * 1024,
+  };
+
+  bytes *= multipliers[unit] || 1;
+  return bytes;
+}
+
+/**
+ * 解析时间字符串 (如 "-7d", "+1h")
+ * 返回 Date 对象，如果格式无效返回 null
+ */
+export function parseTime(timeStr: string): Date | null {
+  const match = timeStr.match(/^([+\-]?)(\d+)\s*([smhdwMy])$/);
+  if (!match) return null;
+
+  const value = parseInt(match[2]);
+  const unit = match[3];
+
+  const now = new Date();
+  let msOffset = 0;
+
+  switch (unit) {
+    case 's': msOffset = value * 1000; break;
+    case 'm': msOffset = value * 60 * 1000; break;
+    case 'h': msOffset = value * 60 * 60 * 1000; break;
+    case 'd': msOffset = value * 24 * 60 * 60 * 1000; break;
+    case 'w': msOffset = value * 7 * 24 * 60 * 60 * 1000; break;
+    case 'M': msOffset = value * 30 * 24 * 60 * 60 * 1000; break;
+    case 'y': msOffset = value * 365 * 24 * 60 * 60 * 1000; break;
+    default: return null;
+  }
+
+  return new Date(now.getTime() - msOffset);
+}

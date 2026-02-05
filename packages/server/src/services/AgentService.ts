@@ -17,13 +17,18 @@ import {
   ToolUseBlock,
   ToolResultBlock,
   ThinkingBlock,
+  ImageBlock,
+  DocumentBlock,
 } from '@claude-web/shared';
 import { sessionStorage } from '../storage/SessionStorage.js';
 import { sessionService } from './SessionService.js';
 import { projectService } from './ProjectService.js';
 import { adminService } from './AdminService.js';
+import { rulesService } from './RulesService.js';
+import { mcpService } from './McpService.js';
 import { config } from '../config.js';
 import { executeTool, getToolDefinitions } from '../tools/index.js';
+import type { ToolDefinition } from '../tools/definitions.js';
 
 type PermissionMode = 'plan' | 'acceptEdits' | 'default';
 
@@ -42,6 +47,11 @@ interface ClaudeContentBlock {
   id?: string;
   name?: string;
   input?: Record<string, unknown>;
+  source?: {           // 用于 image 和 document 类型
+    type: string;
+    media_type: string;
+    data: string;
+  };
 }
 
 interface ClaudeMessage {
@@ -164,11 +174,37 @@ export class AgentService {
       title: sessionTitle,
     } as SSEInitData);
 
+    // 构建用户消息的 content 数组
+    const userContentBlocks: ContentBlock[] = [
+      { type: 'text', content: request.message },
+    ];
+
+    // 添加附件
+    if (request.attachments?.length) {
+      for (const att of request.attachments) {
+        if (att.mediaType.startsWith('image/')) {
+          userContentBlocks.push({
+            type: 'image',
+            mediaType: att.mediaType,
+            data: att.data,
+            name: att.name,
+          } as ImageBlock);
+        } else if (att.mediaType === 'application/pdf') {
+          userContentBlocks.push({
+            type: 'document',
+            mediaType: att.mediaType,
+            data: att.data,
+            name: att.name,
+          } as DocumentBlock);
+        }
+      }
+    }
+
     const userMessage: Message = {
       id: uuidv4(),
       sessionId,
       role: 'user',
-      content: [{ type: 'text', content: request.message }],
+      content: userContentBlocks,
       createdAt: new Date(),
     };
 
@@ -179,6 +215,16 @@ export class AgentService {
       console.log('[AgentService] Working directory:', workingDir);
 
       let systemPrompt = this.buildSystemPrompt(workingDir);
+
+      // 注入用户全局规则
+      try {
+        const userRules = await rulesService.getEnabledRulesContent(userId);
+        if (userRules) {
+          systemPrompt += `\n\n## 用户全局规则\n\n${userRules}`;
+        }
+      } catch (error) {
+        console.warn('[AgentService] Failed to load user rules:', error);
+      }
 
       if (request.projectId) {
         const context = await projectService.getProjectContext(userId, request.projectId);
@@ -231,6 +277,71 @@ export class AgentService {
       return true;
     }
     return false;
+  }
+
+  /**
+   * 获取工具定义（包含内置工具和 MCP 工具）
+   */
+  private async getToolDefinitionsWithMcp(userId: string): Promise<ToolDefinition[]> {
+    const builtinTools = getToolDefinitions();
+
+    try {
+      const mcpTools = await mcpService.getAvailableTools(userId);
+
+      // 将 MCP 工具转换为工具定义格式
+      // 使用 :: 作为分隔符，避免服务器名或工具名含 _ 时解析错误
+      const mcpToolDefinitions = mcpTools.map(tool => ({
+        name: `mcp::${tool.serverName}::${tool.name}`,
+        description: `[MCP: ${tool.serverName}] ${tool.description || tool.name}`,
+        input_schema: tool.inputSchema as ToolDefinition['input_schema'],
+      }));
+
+      return [...builtinTools, ...mcpToolDefinitions];
+    } catch (error) {
+      console.warn('[AgentService] Failed to get MCP tools:', error);
+      return builtinTools;
+    }
+  }
+
+  /**
+   * 执行工具（支持 MCP 工具）
+   */
+  private async executeToolWithMcp(
+    userId: string,
+    toolName: string,
+    input: Record<string, unknown>,
+    workingDir: string
+  ): Promise<{ content: string; isError?: boolean }> {
+    // 检查是否为 MCP 工具 (格式: mcp::serverName::toolName)
+    if (toolName.startsWith('mcp::')) {
+      const parts = toolName.split('::');
+      if (parts.length >= 3) {
+        const serverName = parts[1];
+        const realToolName = parts.slice(2).join('::');
+
+        try {
+          const result = await mcpService.callTool(userId, serverName, realToolName, input);
+          // MCP 工具结果可能有多种格式
+          if (typeof result === 'object' && result !== null && 'content' in result) {
+            const contents = (result as { content: Array<{ type: string; text?: string }> }).content;
+            const textContent = contents
+              .filter(c => c.type === 'text')
+              .map(c => c.text)
+              .join('\n');
+            return { content: textContent || JSON.stringify(result) };
+          }
+          return { content: JSON.stringify(result, null, 2) };
+        } catch (error) {
+          return {
+            content: `MCP 工具调用失败: ${error instanceof Error ? error.message : String(error)}`,
+            isError: true,
+          };
+        }
+      }
+    }
+
+    // 执行内置工具
+    return executeTool(toolName, input, workingDir);
   }
 
   /**
@@ -288,6 +399,9 @@ export class AgentService {
     let model = config.anthropic.model;
     let stopReason = 'end_turn';
 
+    // 获取工具定义（包含 MCP 工具）
+    const toolDefinitions = await this.getToolDefinitionsWithMcp(agentSession.userId);
+
     // 构建初始消息历史
     const messages = this.convertToClaudeMessages(previousMessages);
 
@@ -299,12 +413,13 @@ export class AgentService {
 
       console.log(`[AgentService] Iteration ${iteration + 1}`);
 
-      // 调用 Claude API
+      // 调用 Claude API（传入包含 MCP 的工具定义）
       const result = await this.callClaudeAPI(
         res,
         agentSession,
         systemPrompt,
-        messages
+        messages,
+        toolDefinitions
       );
 
       totalInputTokens += result.inputTokens;
@@ -341,12 +456,13 @@ export class AgentService {
           break;
         }
 
-        // 执行工具
+        // 执行工具（支持 MCP 工具）
         console.log(`[AgentService] Executing tool: ${toolUse.name}`);
 
         let toolResult: { content: string; isError?: boolean };
         try {
-          toolResult = await executeTool(
+          toolResult = await this.executeToolWithMcp(
+            agentSession.userId,
             toolUse.name,
             toolUse.input,
             agentSession.workingDir
@@ -439,7 +555,8 @@ export class AgentService {
     res: Response,
     agentSession: AgentSession,
     systemPrompt: string,
-    messages: ClaudeMessage[]
+    messages: ClaudeMessage[],
+    toolDefinitions?: ToolDefinition[]
   ): Promise<{
     contentBlocks: ContentBlock[];
     rawContent: ClaudeContentBlock[];
@@ -480,7 +597,7 @@ export class AgentService {
         max_tokens: needsThinking ? 16000 : 8192,
         system: systemPrompt,
         messages: messages,
-        tools: getToolDefinitions(),
+        tools: toolDefinitions || getToolDefinitions(),
         stream: true,
       };
 
@@ -696,10 +813,33 @@ export class AgentService {
       if (m.role !== 'user' && m.role !== 'assistant') continue;
 
       let content: ClaudeContentBlock[] = [];
+      let hasNonTextBlocks = false;
 
       for (const block of m.content) {
         if (block.type === 'text') {
           content.push({ type: 'text', text: block.content });
+        } else if (block.type === 'image') {
+          // 图片块转换为 Claude API 格式
+          content.push({
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: block.mediaType,
+              data: block.data,
+            },
+          });
+          hasNonTextBlocks = true;
+        } else if (block.type === 'document') {
+          // 文档块转换为 Claude API 格式
+          content.push({
+            type: 'document',
+            source: {
+              type: 'base64',
+              media_type: block.mediaType,
+              data: block.data,
+            },
+          });
+          hasNonTextBlocks = true;
         } else if (block.type === 'tool_use') {
           content.push({
             type: 'tool_use',
@@ -707,11 +847,13 @@ export class AgentService {
             name: block.toolUse.name,
             input: block.toolUse.input,
           });
+          hasNonTextBlocks = true;
         } else if (block.type === 'tool_result') {
           // tool_result 需要作为单独的 user 消息
           if (content.length > 0) {
             result.push({ role: m.role as 'user' | 'assistant', content });
             content = [];  // 创建新数组，不影响已 push 的引用
+            hasNonTextBlocks = false;
           }
           result.push({
             role: 'user',
@@ -727,8 +869,8 @@ export class AgentService {
       }
 
       if (content.length > 0) {
-        // 如果只有文本，可以简化为字符串
-        if (content.length === 1 && content[0].type === 'text') {
+        // 如果只有文本且没有其他类型的块，可以简化为字符串
+        if (content.length === 1 && content[0].type === 'text' && !hasNonTextBlocks) {
           result.push({ role: m.role as 'user' | 'assistant', content: content[0].text || '' });
         } else {
           result.push({ role: m.role as 'user' | 'assistant', content });

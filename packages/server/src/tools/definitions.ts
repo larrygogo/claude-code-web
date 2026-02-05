@@ -166,6 +166,331 @@ export const toolDefinitions: ToolDefinition[] = [
       required: ['url', 'prompt'],
     },
   },
+  // ==================== 新增工具 ====================
+  // 文件操作增强
+  {
+    name: 'Ls',
+    description: '列出目录内容。支持显示隐藏文件和详细信息（大小、修改时间等）。',
+    input_schema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: '目录路径，默认为当前工作目录',
+        },
+        all: {
+          type: 'boolean',
+          description: '是否显示隐藏文件，默认为 false',
+        },
+        long: {
+          type: 'boolean',
+          description: '是否显示详细信息（大小、修改时间等），默认为 false',
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'FileTree',
+    description: '生成目录树可视化。以树形结构展示目录层级。',
+    input_schema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: '目录路径，默认为当前工作目录',
+        },
+        maxDepth: {
+          type: 'number',
+          description: '最大深度，默认为 3，最大 5',
+        },
+        includeHidden: {
+          type: 'boolean',
+          description: '是否包含隐藏文件，默认为 false',
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'MultiEdit',
+    description: '批量编辑文件，一次执行多处替换。所有编辑必须有唯一匹配才会执行。',
+    input_schema: {
+      type: 'object',
+      properties: {
+        file_path: {
+          type: 'string',
+          description: '要编辑的文件路径',
+        },
+        edits: {
+          type: 'array',
+          description: '编辑操作列表，每个包含 old_string 和 new_string',
+          items: {
+            type: 'object',
+          },
+        },
+      },
+      required: ['file_path', 'edits'],
+    },
+  },
+  {
+    name: 'Diff',
+    description: '比较两个文件的差异。输出统一 diff 格式。',
+    input_schema: {
+      type: 'object',
+      properties: {
+        file1: {
+          type: 'string',
+          description: '第一个文件路径',
+        },
+        file2: {
+          type: 'string',
+          description: '第二个文件路径',
+        },
+        context: {
+          type: 'number',
+          description: '上下文行数，默认为 3',
+        },
+      },
+      required: ['file1', 'file2'],
+    },
+  },
+  {
+    name: 'NotebookEdit',
+    description: '编辑 Jupyter Notebook (.ipynb) 文件。支持更新、插入、删除 cell。',
+    input_schema: {
+      type: 'object',
+      properties: {
+        file_path: {
+          type: 'string',
+          description: 'Notebook 文件路径 (.ipynb)',
+        },
+        cell_index: {
+          type: 'number',
+          description: 'Cell 索引（从 0 开始）',
+        },
+        action: {
+          type: 'string',
+          description: '操作类型',
+          enum: ['update', 'insert', 'delete'],
+        },
+        cell_type: {
+          type: 'string',
+          description: 'Cell 类型（用于 insert 和 update）',
+          enum: ['code', 'markdown'],
+        },
+        source: {
+          type: 'string',
+          description: 'Cell 内容（用于 update 和 insert）',
+        },
+      },
+      required: ['file_path', 'cell_index', 'action'],
+    },
+  },
+  {
+    name: 'Find',
+    description: '高级文件查找。支持按名称、类型、大小、修改时间过滤。',
+    input_schema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: '搜索起始目录，默认为当前工作目录',
+        },
+        name: {
+          type: 'string',
+          description: '文件名模式（支持 glob），如 "*.ts"',
+        },
+        type: {
+          type: 'string',
+          description: '类型过滤',
+          enum: ['file', 'directory', 'all'],
+        },
+        size: {
+          type: 'string',
+          description: '大小过滤，如 "+1M"(大于1MB), "-100K"(小于100KB)',
+        },
+        mtime: {
+          type: 'string',
+          description: '修改时间过滤，如 "-7d"(7天内), "+1h"(1小时前)',
+        },
+        maxDepth: {
+          type: 'number',
+          description: '最大搜索深度，默认为 10',
+        },
+        limit: {
+          type: 'number',
+          description: '结果数量限制，默认为 100',
+        },
+      },
+      required: [],
+    },
+  },
+  // Git 工具
+  {
+    name: 'GitStatus',
+    description: '显示 Git 仓库状态。包含分支信息、暂存更改、未暂存更改、未跟踪文件等。',
+    input_schema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: '仓库路径，默认为当前工作目录',
+        },
+        short: {
+          type: 'boolean',
+          description: '是否使用简短格式，默认为 false',
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'GitDiff',
+    description: '查看 Git 差异。可以查看工作区、暂存区的更改，或与特定提交比较。',
+    input_schema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: '仓库路径，默认为当前工作目录',
+        },
+        staged: {
+          type: 'boolean',
+          description: '只显示暂存的更改，默认为 false',
+        },
+        file: {
+          type: 'string',
+          description: '指定文件路径',
+        },
+        commit: {
+          type: 'string',
+          description: '与特定提交比较',
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'GitLog',
+    description: '显示 Git 提交历史。支持限制数量、过滤作者、查看特定文件的历史。',
+    input_schema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: '仓库路径，默认为当前工作目录',
+        },
+        limit: {
+          type: 'number',
+          description: '显示的提交数量，默认为 10，最大 50',
+        },
+        oneline: {
+          type: 'boolean',
+          description: '是否使用单行格式，默认为 false',
+        },
+        file: {
+          type: 'string',
+          description: '查看特定文件的提交历史',
+        },
+        author: {
+          type: 'string',
+          description: '按作者过滤',
+        },
+      },
+      required: [],
+    },
+  },
+  // 搜索增强
+  {
+    name: 'WebSearch',
+    description: '网络搜索（使用 DuckDuckGo）。返回搜索结果列表。',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: {
+          type: 'string',
+          description: '搜索关键词',
+        },
+        limit: {
+          type: 'number',
+          description: '结果数量，默认为 5',
+        },
+        site: {
+          type: 'string',
+          description: '限定搜索网站，如 "github.com"',
+        },
+      },
+      required: ['query'],
+    },
+  },
+  // 任务管理
+  {
+    name: 'TodoRead',
+    description: '读取当前会话的任务列表。支持按状态过滤。',
+    input_schema: {
+      type: 'object',
+      properties: {
+        sessionId: {
+          type: 'string',
+          description: '会话 ID（必需）',
+        },
+        status: {
+          type: 'string',
+          description: '状态过滤',
+          enum: ['pending', 'in_progress', 'completed', 'all'],
+        },
+        limit: {
+          type: 'number',
+          description: '结果数量限制，默认为 50',
+        },
+      },
+      required: ['sessionId'],
+    },
+  },
+  {
+    name: 'TodoWrite',
+    description: '创建、更新或删除任务。任务存储在会话级别。',
+    input_schema: {
+      type: 'object',
+      properties: {
+        sessionId: {
+          type: 'string',
+          description: '会话 ID（必需）',
+        },
+        action: {
+          type: 'string',
+          description: '操作类型',
+          enum: ['create', 'update', 'delete'],
+        },
+        subject: {
+          type: 'string',
+          description: '任务主题（用于 create 和 update）',
+        },
+        description: {
+          type: 'string',
+          description: '任务描述',
+        },
+        taskId: {
+          type: 'string',
+          description: '任务 ID（用于 update 和 delete）',
+        },
+        status: {
+          type: 'string',
+          description: '任务状态（用于 update）',
+          enum: ['pending', 'in_progress', 'completed'],
+        },
+        blockedBy: {
+          type: 'array',
+          description: '阻塞该任务的其他任务 ID 列表',
+          items: {
+            type: 'string',
+          },
+        },
+      },
+      required: ['sessionId', 'action'],
+    },
+  },
 ];
 
 /**
