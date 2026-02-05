@@ -6,8 +6,9 @@ import { useConfirm } from '@/contexts/ConfirmContext';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { MoveToProjectDialog } from '@/components/Session/MoveToProjectDialog';
 import { formatDate, cn } from '@/lib/utils';
-import { MessageSquare, Plus, Trash2, Loader2, ChevronDown, ChevronRight } from 'lucide-react';
+import { MessageSquare, Plus, Trash2, Loader2, ChevronDown, ChevronRight, FolderInput, Pencil } from 'lucide-react';
 
 // 时间分组顺序
 const TIME_GROUP_ORDER = ['今天', '昨天', '一周内', '一个月内', '历史消息'];
@@ -36,18 +37,22 @@ interface GroupedSessions {
 interface SessionListProps {
   onSelectSession: (sessionId: string) => void;
   onNewSession: () => void;
+  onRenameSession?: (sessionId: string, title: string) => void;
   selectedSessionId?: string;
 }
 
 export function SessionList({
   onSelectSession,
   onNewSession,
+  onRenameSession,
   selectedSessionId,
 }: SessionListProps) {
   const { sessions, isLoadingSessions, loadSessions, deleteSession } = useChatStore();
   const { isMobile, setSidebarOpen } = useUIStore();
   const confirm = useConfirm();
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
+  const [moveTarget, setMoveTarget] = useState<SessionListItem | null>(null);
 
   useEffect(() => {
     loadSessions();
@@ -113,6 +118,12 @@ export function SessionList({
     }
   };
 
+  const handleMove = (e: React.MouseEvent, session: SessionListItem) => {
+    e.stopPropagation();
+    setMoveTarget(session);
+    setMoveDialogOpen(true);
+  };
+
   return (
     <div className="flex flex-col h-full">
       <div className="p-4 border-b">
@@ -159,6 +170,8 @@ export function SessionList({
                       isMobile={isMobile}
                       onSelect={() => handleSelect(session.id)}
                       onDelete={(e) => handleDelete(e, session.id)}
+                      onMove={(e) => handleMove(e, session)}
+                      onRename={onRenameSession ? (title) => onRenameSession(session.id, title) : undefined}
                     />
                   ))}
                 </CollapsibleContent>
@@ -167,6 +180,16 @@ export function SessionList({
           </div>
         )}
       </ScrollArea>
+
+      {/* 移动到项目弹窗 */}
+      {moveTarget && (
+        <MoveToProjectDialog
+          open={moveDialogOpen}
+          onOpenChange={setMoveDialogOpen}
+          sessionId={moveTarget.id}
+          currentProjectId={moveTarget.projectId}
+        />
+      )}
     </div>
   );
 }
@@ -177,15 +200,51 @@ interface SessionItemProps {
   isMobile: boolean;
   onSelect: () => void;
   onDelete: (e: React.MouseEvent) => void;
+  onMove: (e: React.MouseEvent) => void;
+  onRename?: (title: string) => void;
 }
 
-function SessionItem({ session, isSelected, isMobile, onSelect, onDelete }: SessionItemProps) {
+function SessionItem({ session, isSelected, isMobile, onSelect, onDelete, onMove, onRename }: SessionItemProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(session.title);
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    if (onRename) {
+      e.stopPropagation();
+      setEditTitle(session.title);
+      setIsEditing(true);
+    }
+  };
+
+  const handleRenameClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditTitle(session.title);
+    setIsEditing(true);
+  };
+
+  const handleSave = () => {
+    const trimmed = editTitle.trim();
+    if (trimmed && trimmed !== session.title && onRename) {
+      onRename(trimmed);
+    }
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSave();
+    } else if (e.key === 'Escape') {
+      setIsEditing(false);
+      setEditTitle(session.title);
+    }
+  };
+
   return (
     <div
       role="button"
       tabIndex={0}
       onClick={onSelect}
-      onKeyDown={(e) => e.key === 'Enter' && onSelect()}
+      onKeyDown={(e) => e.key === 'Enter' && !isEditing && onSelect()}
       className={cn(
         'w-full text-left p-3 rounded-lg transition-colors group cursor-pointer',
         'hover:bg-muted',
@@ -195,7 +254,25 @@ function SessionItem({ session, isSelected, isMobile, onSelect, onDelete }: Sess
       <div className="flex items-start gap-3">
         <MessageSquare className="h-4 w-4 mt-1 shrink-0 text-muted-foreground" />
         <div className="flex-1 min-w-0">
-          <div className="font-medium text-sm truncate">{session.title}</div>
+          {isEditing ? (
+            <input
+              type="text"
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              onBlur={handleSave}
+              onKeyDown={handleKeyDown}
+              onClick={(e) => e.stopPropagation()}
+              autoFocus
+              className="w-full text-sm font-medium bg-background border rounded px-2 py-1 outline-none focus:ring-1 focus:ring-ring"
+            />
+          ) : (
+            <div
+              className="font-medium text-sm truncate"
+              onDoubleClick={handleDoubleClick}
+            >
+              {session.title}
+            </div>
+          )}
           <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
             <span>{session.messageCount} 条消息</span>
             <span>·</span>
@@ -207,15 +284,39 @@ function SessionItem({ session, isSelected, isMobile, onSelect, onDelete }: Sess
             </div>
           )}
         </div>
-        <button
-          onClick={onDelete}
-          className={cn(
-            'p-1 hover:bg-destructive/10 rounded transition-opacity',
-            isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+        <div className="flex items-center gap-1">
+          {onRename && (
+            <button
+              onClick={handleRenameClick}
+              title="重命名"
+              className={cn(
+                'p-1 hover:bg-muted-foreground/10 rounded transition-opacity',
+                isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+              )}
+            >
+              <Pencil className="h-4 w-4 text-muted-foreground" />
+            </button>
           )}
-        >
-          <Trash2 className="h-4 w-4 text-destructive" />
-        </button>
+          <button
+            onClick={onMove}
+            title="移动到项目"
+            className={cn(
+              'p-1 hover:bg-muted-foreground/10 rounded transition-opacity',
+              isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+            )}
+          >
+            <FolderInput className="h-4 w-4 text-muted-foreground" />
+          </button>
+          <button
+            onClick={onDelete}
+            className={cn(
+              'p-1 hover:bg-destructive/10 rounded transition-opacity',
+              isMobile ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+            )}
+          >
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </button>
+        </div>
       </div>
     </div>
   );

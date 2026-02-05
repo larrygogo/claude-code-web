@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatDate } from '@/lib/utils';
+import { useUIStore } from '@/stores/uiStore';
 import {
   ArrowLeft,
   Edit2,
@@ -111,6 +112,28 @@ export default function ProjectDetailPage() {
     }
   };
 
+  const { isMobile, setMobileHeaderActions } = useUIStore();
+
+  // 移动端设置 MobileHeader actions
+  useEffect(() => {
+    if (isMobile) {
+      setMobileHeaderActions(
+        <>
+          <Button size="icon" variant="ghost" onClick={() => navigate('/projects')}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <Button size="icon" variant="ghost" onClick={() => setIsEditing(!isEditing)}>
+            <Edit2 className="h-5 w-5" />
+          </Button>
+          <Button size="icon" variant="ghost" className="text-destructive" onClick={handleDelete}>
+            <Trash2 className="h-5 w-5" />
+          </Button>
+        </>
+      );
+      return () => setMobileHeaderActions(null);
+    }
+  }, [isMobile, isEditing]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -135,11 +158,11 @@ export default function ProjectDetailPage() {
   return (
     <div className="p-4 max-w-4xl mx-auto">
       {/* 顶部导航 */}
-      <div className="flex items-center gap-2 mb-6">
+      <div className="hidden md:flex items-center gap-2 mb-6">
         <Button variant="ghost" size="icon" onClick={() => navigate('/projects')}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h1 className="text-2xl font-bold flex-1">{project.name}</h1>
+        <h1 className="text-xl font-bold flex-1">{project.name}</h1>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" onClick={() => setIsEditing(!isEditing)}>
             <Edit2 className="h-4 w-4" />

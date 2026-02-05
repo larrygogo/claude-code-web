@@ -38,3 +38,8 @@ export interface SessionListItem {
 export interface SessionImportInput {
   filePath: string;
 }
+
+export interface SessionUpdateInput {
+  title?: string;
+  projectId?: string | null;
+}

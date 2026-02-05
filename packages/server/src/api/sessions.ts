@@ -1,11 +1,5 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import {
-  ApiResponse,
-  Session,
-  SessionWithMessages,
-  SessionListItem,
-} from '@claude-web/shared';
 import { sessionService } from '../services/SessionService.js';
 import { authMiddleware, requireUser } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/error.js';
@@ -18,7 +12,8 @@ const createSessionSchema = z.object({
 });
 
 const updateSessionSchema = z.object({
-  title: z.string().min(1, 'Title is required'),
+  title: z.string().min(1, 'Title is required').optional(),
+  projectId: z.string().uuid().nullable().optional(),
 });
 
 const forkSessionSchema = z.object({
@@ -52,8 +47,8 @@ router.get('/:id', authMiddleware, asyncHandler(async (req, res) => {
 
 router.patch('/:id', authMiddleware, asyncHandler(async (req, res) => {
   const { userId } = requireUser(req);
-  const { title } = updateSessionSchema.parse(req.body);
-  const session = await sessionService.updateSessionTitle(userId, req.params.id, title);
+  const input = updateSessionSchema.parse(req.body);
+  const session = await sessionService.updateSession(userId, req.params.id, input);
   res.json({ success: true, data: session });
 }));
 

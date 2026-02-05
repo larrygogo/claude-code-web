@@ -11,6 +11,7 @@ import {
   createSession,
   deleteSession as apiDeleteSession,
   forkSession as apiForkSession,
+  updateSession as apiUpdateSession,
   abortChat,
 } from '@/lib/api';
 import { streamChat, SSEEventHandler, abortStream, abortCurrentStream } from '@/lib/sse';
@@ -44,6 +45,8 @@ interface ChatState {
   newSession: (projectId?: string) => Promise<string>;
   deleteSession: (sessionId: string) => Promise<void>;
   forkSession: (sessionId: string, messageIndex: number) => Promise<string>;
+  moveSessionToProject: (sessionId: string, projectId: string | null) => Promise<void>;
+  updateSessionTitle: (sessionId: string, title: string) => Promise<void>;
   sendMessage: (message: string, projectId?: string, token?: string) => Promise<void>;
   abortStreaming: () => Promise<void>;
   clearError: () => void;
@@ -135,6 +138,38 @@ export const useChatStore = create<ChatState>((set, get) => ({
     } catch (error) {
       set({
         error: error instanceof Error ? error.message : 'Failed to fork session',
+      });
+      throw error;
+    }
+  },
+
+  moveSessionToProject: async (sessionId: string, projectId: string | null) => {
+    try {
+      await apiUpdateSession(sessionId, { projectId });
+      await get().loadSessions();
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to move session',
+      });
+      throw error;
+    }
+  },
+
+  updateSessionTitle: async (sessionId: string, title: string) => {
+    try {
+      await apiUpdateSession(sessionId, { title });
+      const { currentSession } = get();
+      set((state) => ({
+        currentSession: state.currentSession?.id === sessionId
+          ? { ...state.currentSession!, title }
+          : state.currentSession,
+        sessions: state.sessions.map(s =>
+          s.id === sessionId ? { ...s, title } : s
+        ),
+      }));
+    } catch (error) {
+      set({
+        error: error instanceof Error ? error.message : 'Failed to update title',
       });
       throw error;
     }
@@ -297,6 +332,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
             streaming: { ...state.streaming!, blocks },
           };
         });
+      },
+      onTitleUpdate: (data) => {
+        set((state) => ({
+          currentSession: state.currentSession?.id === data.sessionId
+            ? { ...state.currentSession!, title: data.title }
+            : state.currentSession,
+          sessions: state.sessions.map(s =>
+            s.id === data.sessionId ? { ...s, title: data.title } : s
+          ),
+        }));
       },
       onError: (data) => {
         set({

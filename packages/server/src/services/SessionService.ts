@@ -4,6 +4,7 @@ import {
   SessionWithMessages,
   SessionCreateInput,
   SessionListItem,
+  SessionUpdateInput,
 } from '@claude-web/shared';
 import { getDatabase } from '../storage/Database.js';
 import { sessionStorage } from '../storage/SessionStorage.js';
@@ -101,6 +102,38 @@ export class SessionService {
     const updated = await db.session.update({
       where: { id: sessionId },
       data: { title },
+    });
+
+    return this.mapSession(updated);
+  }
+
+  async updateSession(userId: string, sessionId: string, input: SessionUpdateInput): Promise<Session> {
+    const db = getDatabase();
+
+    const session = await db.session.findUnique({
+      where: { id: sessionId },
+    });
+
+    if (!session) {
+      throw new NotFoundError('Session');
+    }
+
+    if (session.userId !== userId) {
+      throw new ForbiddenError('Access denied to this session');
+    }
+
+    // 构建更新数据，只包含传入的字段
+    const data: { title?: string; projectId?: string | null } = {};
+    if (input.title !== undefined) {
+      data.title = input.title;
+    }
+    if (input.projectId !== undefined) {
+      data.projectId = input.projectId;
+    }
+
+    const updated = await db.session.update({
+      where: { id: sessionId },
+      data,
     });
 
     return this.mapSession(updated);

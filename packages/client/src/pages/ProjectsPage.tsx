@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatDate, cn } from '@/lib/utils';
+import { useUIStore } from '@/stores/uiStore';
 import { FolderOpen, Plus, Loader2, X, Sparkles, Search, Check } from 'lucide-react';
 
 export default function ProjectsPage() {
@@ -92,9 +93,23 @@ export default function ProjectsPage() {
     setSearchMessage('');
   };
 
+  const { isMobile, setMobileHeaderActions } = useUIStore();
+
+  // 移动端设置 MobileHeader actions
+  useEffect(() => {
+    if (isMobile) {
+      setMobileHeaderActions(
+        <Button size="icon" variant="ghost" onClick={() => setShowCreateForm(true)}>
+          <Plus className="h-5 w-5" />
+        </Button>
+      );
+      return () => setMobileHeaderActions(null);
+    }
+  }, [isMobile]);
+
   return (
     <div className="p-4 max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+      <div className="hidden md:flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">项目管理</h1>
         <Button onClick={() => setShowCreateForm(true)}>
           <Plus className="h-4 w-4 mr-2" />
@@ -263,7 +278,7 @@ export default function ProjectsPage() {
           {projects.map((project) => (
             <Card
               key={project.id}
-              className="cursor-pointer hover:bg-muted/50 transition-colors"
+              className="cursor-pointer hover:bg-muted/50 transition-colors overflow-hidden"
               onClick={() => navigate(`/projects/${project.id}`)}
             >
               <CardContent className="p-4">

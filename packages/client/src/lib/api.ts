@@ -129,6 +129,10 @@ export async function deleteSession(sessionId: string) {
   return apiClient.delete(`/api/sessions/${sessionId}`);
 }
 
+export async function updateSession(sessionId: string, input: import('@claude-web/shared').SessionUpdateInput) {
+  return apiClient.patch<import('@claude-web/shared').Session>(`/api/sessions/${sessionId}`, input);
+}
+
 export async function forkSession(sessionId: string, messageIndex: number) {
   return apiClient.post<import('@claude-web/shared').Session>(`/api/sessions/${sessionId}/fork`, {
     messageIndex,
@@ -184,4 +188,48 @@ export async function searchProjectPath(description: string) {
   return apiClient.post<{ paths: string[]; message: string }>('/api/projects/search-path', {
     description,
   });
+}
+
+// ==================== Admin API ====================
+
+export async function getAdminDashboard() {
+  return apiClient.get<import('@claude-web/shared').DashboardStats>('/api/admin/dashboard');
+}
+
+export async function getAdminUsers(page = 1, limit = 20, search?: string) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (search) params.append('search', search);
+  return apiClient.get<import('@claude-web/shared').UserListResponse>(`/api/admin/users?${params}`);
+}
+
+export async function updateUserStatus(userId: string, status: import('@claude-web/shared').UserStatus) {
+  return apiClient.patch<import('@claude-web/shared').UserListItem>(`/api/admin/users/${userId}/status`, { status });
+}
+
+export async function updateUserRole(userId: string, role: import('@claude-web/shared').UserRole) {
+  return apiClient.patch<import('@claude-web/shared').UserListItem>(`/api/admin/users/${userId}/role`, { role });
+}
+
+export async function resetUserPassword(userId: string, newPassword: string) {
+  return apiClient.post<{ message: string }>(`/api/admin/users/${userId}/reset-password`, { newPassword });
+}
+
+export async function deleteAdminUser(userId: string) {
+  return apiClient.delete<{ message: string }>(`/api/admin/users/${userId}`);
+}
+
+export async function getAdminModels() {
+  return apiClient.get<import('@claude-web/shared').ModelConfigListItem[]>('/api/admin/models');
+}
+
+export async function createAdminModel(input: import('@claude-web/shared').ModelConfigInput) {
+  return apiClient.post<import('@claude-web/shared').ModelConfigListItem>('/api/admin/models', input);
+}
+
+export async function updateAdminModel(id: string, input: import('@claude-web/shared').ModelConfigUpdateInput) {
+  return apiClient.patch<import('@claude-web/shared').ModelConfigListItem>(`/api/admin/models/${id}`, input);
+}
+
+export async function deleteAdminModel(id: string) {
+  return apiClient.delete<{ message: string }>(`/api/admin/models/${id}`);
 }
