@@ -36,7 +36,7 @@ export const useSystemStore = create<SystemState>()((set, get) => ({
 
   isToolEnabled: (toolName: string) => {
     const { config } = get();
-    if (!config) return true; // 默认允许
+    if (!config) return false; // 配置未加载时默认禁止（安全原则）
     return config.enabledTools.includes(toolName);
   },
 }));

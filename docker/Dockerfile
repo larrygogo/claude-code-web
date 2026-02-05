@@ -57,7 +57,7 @@ EXPOSE 3001
 CMD ["node", "dist/index.js"]
 
 # Client production stage - 使用 nginx 服务 Vite 静态文件
-FROM nginx:alpine AS client
+FROM nginx:1.25-alpine AS client
 
 # 复制 nginx 配置
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
