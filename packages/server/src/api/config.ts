@@ -6,6 +6,9 @@ import { authMiddleware } from '../middleware/auth.js';
 
 const router: RouterType = Router();
 
+// 所有配置 API 都需要认证
+router.use(authMiddleware);
+
 /**
  * 获取本地 Skills 配置
  * GET /api/config/local/skills
@@ -81,7 +84,7 @@ router.get('/local', async (_req: Request, res: Response) => {
  * 同步本地 MCP 配置到数据库
  * POST /api/config/sync/mcp
  */
-router.post('/sync/mcp', authMiddleware, async (req: Request, res: Response) => {
+router.post('/sync/mcp', async (req: Request, res: Response) => {
   try {
     const userId = req.user?.userId;
     if (!userId) {
@@ -134,7 +137,7 @@ router.post('/sync/mcp', authMiddleware, async (req: Request, res: Response) => 
  * 同步本地 Skills 到数据库
  * POST /api/config/sync/skills
  */
-router.post('/sync/skills', authMiddleware, async (req: Request, res: Response) => {
+router.post('/sync/skills', async (req: Request, res: Response) => {
   try {
     const userId = req.user?.userId;
     if (!userId) {
@@ -192,7 +195,7 @@ router.post('/sync/skills', authMiddleware, async (req: Request, res: Response) 
  * 同步所有本地配置
  * POST /api/config/sync
  */
-router.post('/sync', authMiddleware, async (req: Request, res: Response) => {
+router.post('/sync', async (req: Request, res: Response) => {
   try {
     const userId = req.user?.userId;
     if (!userId) {

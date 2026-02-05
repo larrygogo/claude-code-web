@@ -21,6 +21,9 @@ export interface McpResource {
   mimeType?: string;
 }
 
+// 连接超时时间（毫秒）
+const CONNECTION_TIMEOUT = 30000;
+
 export class McpClient {
   private client: Client;
   private transport: StdioClientTransport | null = null;
@@ -62,8 +65,12 @@ export class McpClient {
         env: mergedEnv,
       });
 
-      // 连接客户端
-      await this.client.connect(this.transport);
+      // 使用超时包装连接操作，防止 MCP 服务器无响应时永久阻塞
+      const connectPromise = this.client.connect(this.transport);
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Connection timeout after ${CONNECTION_TIMEOUT}ms`)), CONNECTION_TIMEOUT)
+      );
+      await Promise.race([connectPromise, timeoutPromise]);
       this.connected = true;
 
       // 验证连接 - 尝试获取服务器信息

@@ -116,6 +116,35 @@ export class LocalConfigService {
   }
 
   /**
+   * 验证 MCP 服务器配置
+   */
+  private isValidMcpServerConfig(name: string, config: unknown): config is { command: string; args?: string[]; env?: Record<string, string> } {
+    if (typeof config !== 'object' || config === null) {
+      console.warn(`[LocalConfigService] Invalid MCP server config for ${name}: not an object`);
+      return false;
+    }
+    const cfg = config as Record<string, unknown>;
+    if (typeof cfg.command !== 'string' || !cfg.command) {
+      console.warn(`[LocalConfigService] Invalid MCP server config for ${name}: missing or invalid command`);
+      return false;
+    }
+    if (cfg.args !== undefined && !Array.isArray(cfg.args)) {
+      console.warn(`[LocalConfigService] Invalid MCP server config for ${name}: args must be an array`);
+      return false;
+    }
+    if (cfg.env !== undefined && (typeof cfg.env !== 'object' || cfg.env === null)) {
+      console.warn(`[LocalConfigService] Invalid MCP server config for ${name}: env must be an object`);
+      return false;
+    }
+    // 验证名称不包含危险字符
+    if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+      console.warn(`[LocalConfigService] Invalid MCP server name: ${name}`);
+      return false;
+    }
+    return true;
+  }
+
+  /**
    * 从本地配置读取 MCP 服务器配置
    */
   async getLocalMcpServers(): Promise<LocalMcpServer[]> {
@@ -125,23 +154,19 @@ export class LocalConfigService {
     try {
       const settingsPath = path.join(this.claudeDir, 'settings.json');
       const settingsContent = await fs.readFile(settingsPath, 'utf-8');
-      const settings = JSON.parse(settingsContent) as {
-        mcpServers?: Record<string, {
-          command: string;
-          args?: string[];
-          env?: Record<string, string>;
-        }>;
-      };
+      const settings = JSON.parse(settingsContent) as Record<string, unknown>;
 
-      if (settings.mcpServers) {
-        for (const [name, config] of Object.entries(settings.mcpServers)) {
-          servers.push({
-            name,
-            command: config.command,
-            args: config.args || [],
-            env: config.env,
-            source: 'local',
-          });
+      if (settings.mcpServers && typeof settings.mcpServers === 'object') {
+        for (const [name, config] of Object.entries(settings.mcpServers as Record<string, unknown>)) {
+          if (this.isValidMcpServerConfig(name, config)) {
+            servers.push({
+              name,
+              command: config.command,
+              args: config.args || [],
+              env: config.env,
+              source: 'local',
+            });
+          }
         }
       }
     } catch (error) {
@@ -156,21 +181,21 @@ export class LocalConfigService {
       const skills = await fs.readdir(skillsDir);
 
       for (const skill of skills) {
+        // 验证 skill 目录名不包含路径遍历字符
+        if (skill.includes('..') || skill.includes('/') || skill.includes('\\')) {
+          console.warn(`[LocalConfigService] Skipping suspicious skill directory: ${skill}`);
+          continue;
+        }
+
         const mcpJsonPath = path.join(skillsDir, skill, '.mcp.json');
         try {
           const mcpContent = await fs.readFile(mcpJsonPath, 'utf-8');
-          const mcpConfig = JSON.parse(mcpContent) as {
-            mcpServers?: Record<string, {
-              command: string;
-              args?: string[];
-              env?: Record<string, string>;
-            }>;
-          };
+          const mcpConfig = JSON.parse(mcpContent) as Record<string, unknown>;
 
-          if (mcpConfig.mcpServers) {
-            for (const [name, config] of Object.entries(mcpConfig.mcpServers)) {
+          if (mcpConfig.mcpServers && typeof mcpConfig.mcpServers === 'object') {
+            for (const [name, config] of Object.entries(mcpConfig.mcpServers as Record<string, unknown>)) {
               // 避免重复
-              if (!servers.some(s => s.name === name)) {
+              if (!servers.some(s => s.name === name) && this.isValidMcpServerConfig(name, config)) {
                 servers.push({
                   name,
                   command: config.command,
