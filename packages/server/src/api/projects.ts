@@ -1,9 +1,9 @@
 import { Router, type Router as RouterType } from 'express';
 import { z } from 'zod';
 import { projectService } from '../services/ProjectService.js';
+import { adminService } from '../services/AdminService.js';
 import { authMiddleware, requireUser } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/error.js';
-import { config } from '../config.js';
 
 const router: RouterType = Router();
 
@@ -214,15 +214,28 @@ router.post('/search-path', authMiddleware, asyncHandler(async (req, res) => {
 {"keywords": ["keyword1", "keyword2", "keyword3"]}`;
 
   try {
-    const response = await fetch(`${config.anthropic.baseUrl || 'https://api.anthropic.com'}/v1/messages`, {
+    // 获取模型配置
+    const modelConfig = await adminService.getActiveModelConfig();
+    if (!modelConfig || !modelConfig.apiKey) {
+      res.json({
+        success: true,
+        data: {
+          paths: [],
+          message: '未配置模型，无法使用 AI 搜索功能',
+        },
+      });
+      return;
+    }
+
+    const response = await fetch(`${modelConfig.apiEndpoint || 'https://api.anthropic.com'}/v1/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': config.anthropic.apiKey,
+        'x-api-key': modelConfig.apiKey!,
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: config.anthropic.model,
+        model: modelConfig.modelId,
         max_tokens: 256,
         system: systemPrompt,
         messages: [{ role: 'user', content: `项目描述：${description}` }],
@@ -294,15 +307,15 @@ ${paths.map((p, i) => `${i + 1}. ${p}`).join('\n')}
 只返回 JSON，格式：{"ranked": [排序后的路径数组，最多10个], "reason": "简短说明为什么第一个最可能"}`;
 
     try {
-      const rankResponse = await fetch(`${config.anthropic.baseUrl || 'https://api.anthropic.com'}/v1/messages`, {
+      const rankResponse = await fetch(`${modelConfig.apiEndpoint || 'https://api.anthropic.com'}/v1/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': config.anthropic.apiKey,
+          'x-api-key': modelConfig.apiKey!,
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
-          model: config.anthropic.model,
+          model: modelConfig.modelId,
           max_tokens: 512,
           messages: [{ role: 'user', content: rankPrompt }],
         }),

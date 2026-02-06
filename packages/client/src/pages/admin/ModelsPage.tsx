@@ -13,17 +13,11 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { Plus, Pencil, Trash2, Star, Check } from 'lucide-react';
-import { ModelConfigInput, ModelConfigUpdateInput, ModelProvider } from '@claude-web/shared';
-
-const providerOptions: { value: ModelProvider; label: string }[] = [
-  { value: 'anthropic', label: 'Anthropic' },
-  { value: 'openai', label: 'OpenAI' },
-  { value: 'custom', label: '自定义' },
-];
+import { ModelConfigInput, ModelConfigUpdateInput } from '@claude-web/shared';
 
 interface ModelFormData {
   name: string;
-  provider: ModelProvider;
+  provider: 'anthropic';
   modelId: string;
   apiEndpoint: string;
   apiKey: string;
@@ -182,7 +176,7 @@ export default function AdminModelsPage() {
                 <thead>
                   <tr className="border-b">
                     <th className="text-left py-3 px-4 font-medium">名称</th>
-                    <th className="text-left py-3 px-4 font-medium">提供商</th>
+                    {/* 提供商固定为 Anthropic，不显示 */}
                     <th className="text-left py-3 px-4 font-medium">模型 ID</th>
                     <th className="text-left py-3 px-4 font-medium">API 端点</th>
                     <th className="text-left py-3 px-4 font-medium">状态</th>
@@ -203,9 +197,6 @@ export default function AdminModelsPage() {
                             </span>
                           )}
                         </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        {providerOptions.find((p) => p.value === model.provider)?.label || model.provider}
                       </td>
                       <td className="py-3 px-4 font-mono text-sm">{model.modelId}</td>
                       <td className="py-3 px-4 text-muted-foreground text-sm max-w-48 truncate">
@@ -281,20 +272,6 @@ export default function AdminModelsPage() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium">提供商</label>
-              <select
-                value={formData.provider}
-                onChange={(e) => setFormData({ ...formData, provider: e.target.value as ModelProvider })}
-                className="w-full px-3 py-2 rounded-md border bg-background"
-              >
-                {providerOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
               <label className="text-sm font-medium">模型 ID</label>
               <Input
                 value={formData.modelId}
@@ -315,10 +292,10 @@ export default function AdminModelsPage() {
                 API Key {editingId && <span className="text-muted-foreground">(留空则不修改)</span>}
               </label>
               <Input
-                type="password"
                 value={formData.apiKey}
                 onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
                 placeholder={editingId ? '留空则保持原有值' : '输入 API Key'}
+                autoComplete="off"
               />
             </div>
             <div>

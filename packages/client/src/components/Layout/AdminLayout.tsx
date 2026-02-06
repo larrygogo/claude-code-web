@@ -3,12 +3,13 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { LayoutDashboard, Users, Cpu, ArrowLeft, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, Cpu, Settings, ArrowLeft, LogOut } from 'lucide-react';
 
 const navItems = [
   { path: '/admin', icon: LayoutDashboard, label: '仪表板', end: true },
   { path: '/admin/users', icon: Users, label: '用户管理' },
   { path: '/admin/models', icon: Cpu, label: '模型配置' },
+  { path: '/admin/settings', icon: Settings, label: '系统设置' },
 ];
 
 export function AdminLayout() {

@@ -44,6 +44,7 @@ export interface SSEInitData {
   sessionId: string;
   messageId: string;
   title?: string;
+  workingDir?: string;  // 项目工作目录
 }
 
 export interface SSETextDelta {

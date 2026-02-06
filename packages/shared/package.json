@@ -13,8 +13,8 @@
     }
   },
   "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
+    "build": "tsc --incremental",
+    "dev": "tsc --watch --incremental",
     "clean": "rimraf dist"
   },
   "devDependencies": {

@@ -12,6 +12,9 @@ out
 .env.local
 .env.*.local
 
+# JWT secrets (auto-generated in production)
+.jwt-secrets.json
+
 # Database
 *.db
 *.db-journal

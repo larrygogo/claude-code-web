@@ -40,6 +40,7 @@ interface ChatState {
   isLoadingSessions: boolean;
   isLoadingSession: boolean;
   streamingSessionId: string | null;  // 替代全局 isStreaming，记录正在流式传输的会话 ID
+  workingDir: string | null;  // 当前会话的工作目录
   error: string | null;
   abortController: AbortController | null;
 
@@ -69,6 +70,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isLoadingSessions: false,
   isLoadingSession: false,
   streamingSessionId: null,
+  workingDir: null,
   error: null,
   abortController: null,
 
@@ -86,7 +88,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   loadSession: async (sessionId: string) => {
-    set({ isLoadingSession: true, error: null });
+    set({ isLoadingSession: true, error: null, workingDir: null });
     try {
       const session = await getSession(sessionId);
       set({ currentSession: session, isLoadingSession: false });
@@ -258,6 +260,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
             },
             // 更新为真实的 sessionId（新建会话时，初始可能为 null）
             streamingSessionId: data.sessionId,
+            // 存储工作目录
+            workingDir: data.workingDir || null,
           };
 
           // 如果服务端返回了更新后的标题，同步更新前端状态

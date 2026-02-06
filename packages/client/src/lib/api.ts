@@ -14,8 +14,8 @@ function getApiBaseUrl(): string {
   if (typeof window !== 'undefined' && window.__ENV__?.VITE_API_URL) {
     return window.__ENV__.VITE_API_URL;
   }
-  // 回退到构建时的环境变量
-  return import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  // 回退到构建时的环境变量，再回退到默认值
+  return import.meta.env.VITE_API_URL || `http://localhost:${import.meta.env.VITE_SERVER_PORT || '3001'}`;
 }
 
 const API_BASE_URL = getApiBaseUrl();
@@ -97,14 +97,6 @@ export const apiClient = new ApiClient();
 export async function login(email: string, password: string) {
   return apiClient.post<import('@claude-web/shared').AuthResponse>('/api/auth/login', {
     email,
-    password,
-  });
-}
-
-export async function register(email: string, username: string, password: string) {
-  return apiClient.post<import('@claude-web/shared').AuthResponse>('/api/auth/register', {
-    email,
-    username,
     password,
   });
 }

@@ -165,7 +165,7 @@ router.get(
 
 const createModelSchema = z.object({
   name: z.string().min(1).max(100),
-  provider: z.enum(['anthropic', 'openai', 'custom']),
+  provider: z.literal('anthropic'),
   modelId: z.string().min(1),
   apiEndpoint: z.string().url(),
   apiKey: z.string().min(1),
@@ -211,7 +211,7 @@ router.get(
 
 const updateModelSchema = z.object({
   name: z.string().min(1).max(100).optional(),
-  provider: z.enum(['anthropic', 'openai', 'custom']).optional(),
+  provider: z.literal('anthropic').optional(),
   modelId: z.string().min(1).optional(),
   apiEndpoint: z.string().url().optional(),
   apiKey: z.string().min(1).optional(),

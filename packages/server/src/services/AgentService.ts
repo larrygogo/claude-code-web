@@ -26,7 +26,6 @@ import { projectService } from './ProjectService.js';
 import { adminService } from './AdminService.js';
 import { rulesService } from './RulesService.js';
 import { mcpService } from './McpService.js';
-import { config } from '../config.js';
 import { executeTool, getToolDefinitions } from '../tools/index.js';
 import type { ToolDefinition } from '../tools/definitions.js';
 
@@ -65,38 +64,21 @@ const activeSessions = new Map<string, AgentSession>();
 const MAX_TOOL_ITERATIONS = 20;
 
 export class AgentService {
-  private defaultBaseUrl: string;
-  private defaultApiKey: string;
-  private defaultModel: string;
-
-  constructor() {
-    this.defaultBaseUrl = config.anthropic.baseUrl || 'https://api.anthropic.com';
-    this.defaultApiKey = config.anthropic.apiKey;
-    this.defaultModel = config.anthropic.model;
-  }
-
   /**
-   * 获取模型配置（优先从数据库，回退到环境变量）
+   * 获取模型配置（仅从数据库）
+   * 不再支持环境变量回退，必须在 Admin 后台配置模型
    */
   private async getModelConfig(): Promise<{ baseUrl: string; apiKey: string; model: string }> {
-    try {
-      const dbConfig = await adminService.getActiveModelConfig();
-      if (dbConfig && dbConfig.apiKey) {
-        return {
-          baseUrl: dbConfig.apiEndpoint || this.defaultBaseUrl,
-          apiKey: dbConfig.apiKey,
-          model: dbConfig.modelId,
-        };
-      }
-    } catch (error) {
-      console.warn('[AgentService] Failed to get model config from database, using env fallback:', error);
+    const dbConfig = await adminService.getActiveModelConfig();
+
+    if (!dbConfig || !dbConfig.apiKey) {
+      throw new Error('No model configured. Please configure a model in Admin settings.');
     }
 
-    // 回退到环境变量配置
     return {
-      baseUrl: this.defaultBaseUrl,
-      apiKey: this.defaultApiKey,
-      model: this.defaultModel,
+      baseUrl: dbConfig.apiEndpoint || 'https://api.anthropic.com',
+      apiKey: dbConfig.apiKey,
+      model: dbConfig.modelId,
     };
   }
 
@@ -172,6 +154,7 @@ export class AgentService {
       sessionId,
       messageId,
       title: sessionTitle,
+      workingDir,
     } as SSEInitData);
 
     // 构建用户消息的 content 数组
@@ -368,6 +351,8 @@ export class AgentService {
 
 所有文件操作都相对于此目录。你可以使用相对路径或绝对路径。
 
+**重要**: 在新会话中处理用户第一条消息时，你必须首先使用 Bash 工具执行 \`cd ${workingDir} && pwd\` 来确认工作目录，然后再处理用户的请求。这可以让用户直观地看到当前工作环境已正确设置。
+
 ## 使用指南
 
 - 在修改文件之前，先使用 Read 工具查看文件内容
@@ -396,7 +381,7 @@ export class AgentService {
     const allContentBlocks: ContentBlock[] = [];
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
-    let model = config.anthropic.model;
+    let model = 'unknown'; // 将在 API 调用后更新
     let stopReason = 'end_turn';
 
     // 获取工具定义（包含 MCP 工具）

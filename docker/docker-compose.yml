@@ -7,7 +7,7 @@ services:
       dockerfile: docker/Dockerfile
       target: server
     ports:
-      - "3001:3001"
+      - "${SERVER_PORT:-3001}:3001"
     environment:
       - NODE_ENV=production
       - PORT=3001
@@ -16,7 +16,7 @@ services:
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - DATA_DIR=/data/claude-web
-      - CLIENT_URL=http://localhost:3000
+      - CLIENT_URL=${CLIENT_URL:-http://localhost:${CLIENT_PORT:-3000}}
       # 操作模式配置 - Docker 默认禁用文件系统和命令执行
       - ENABLE_FILE_SYSTEM=${ENABLE_FILE_SYSTEM:-false}
       - ENABLE_BASH=${ENABLE_BASH:-false}
@@ -35,10 +35,10 @@ services:
       dockerfile: docker/Dockerfile
       target: client
     ports:
-      - "3000:3000"
+      - "${CLIENT_PORT:-3000}:3000"
     environment:
       - NODE_ENV=production
-      - VITE_API_URL=http://localhost:3001
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:${SERVER_PORT:-3001}}
     depends_on:
       - server
     restart: unless-stopped

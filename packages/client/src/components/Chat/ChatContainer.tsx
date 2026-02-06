@@ -67,7 +67,7 @@ export function ChatContainer({ sessionId, projectId }: ChatContainerProps) {
       {currentSession ? (
         <>
           <MessageList messages={currentSession.messages} />
-          <InputArea projectId={projectId} />
+          <InputArea projectId={projectId || currentSession?.projectId} />
         </>
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center p-4">

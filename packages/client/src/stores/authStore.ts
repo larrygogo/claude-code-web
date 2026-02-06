@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { User, AuthTokens, UserSettings } from '@claude-web/shared';
-import { apiClient, login as apiLogin, register as apiRegister, refreshToken, logout as apiLogout, getCurrentUser, updateUserSettings } from '@/lib/api';
+import { apiClient, login as apiLogin, refreshToken, logout as apiLogout, getCurrentUser, updateUserSettings } from '@/lib/api';
 
 interface AuthState {
   user: User | null;
@@ -10,11 +10,11 @@ interface AuthState {
   isInitialized: boolean;
 
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   initialize: () => Promise<void>;
   refresh: () => Promise<void>;
   updateSettings: (settings: Partial<UserSettings>) => Promise<void>;
+  setAuthState: (user: User, tokens: AuthTokens) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -29,22 +29,6 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true });
         try {
           const response = await apiLogin(email, password);
-          apiClient.setAccessToken(response.tokens.accessToken);
-          set({
-            user: response.user,
-            tokens: response.tokens,
-            isLoading: false,
-          });
-        } catch (error) {
-          set({ isLoading: false });
-          throw error;
-        }
-      },
-
-      register: async (email: string, username: string, password: string) => {
-        set({ isLoading: true });
-        try {
-          const response = await apiRegister(email, username, password);
           apiClient.setAccessToken(response.tokens.accessToken);
           set({
             user: response.user,
@@ -116,6 +100,11 @@ export const useAuthStore = create<AuthState>()(
 
         const newSettings = await updateUserSettings(settings);
         set({ user: { ...user, settings: newSettings } });
+      },
+
+      setAuthState: (user: User, tokens: AuthTokens) => {
+        apiClient.setAccessToken(tokens.accessToken);
+        set({ user, tokens, isInitialized: true });
       },
     }),
     {

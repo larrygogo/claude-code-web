@@ -155,7 +155,7 @@ export class AuthService {
     return newSettings;
   }
 
-  private async generateTokens(user: { id: string; email: string; role?: string }): Promise<AuthTokens> {
+  async generateTokens(user: { id: string; email: string; role?: string }): Promise<AuthTokens> {
     const db = getDatabase();
 
     const payload = {

@@ -4,7 +4,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { MessageItem } from './MessageItem';
 import { useChatStore } from '@/stores/chatStore';
 import { useIsMobile } from '@/hooks/useMediaQuery';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface MessageListProps {
@@ -13,7 +13,7 @@ interface MessageListProps {
 
 export function MessageList({ messages }: MessageListProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
-  const { streaming, streamingSessionId, currentSession } = useChatStore();
+  const { streaming, streamingSessionId, currentSession, workingDir } = useChatStore();
   const isMobile = useIsMobile();
   const [isAtBottom, setIsAtBottom] = useState(true);
 
@@ -66,6 +66,13 @@ export function MessageList({ messages }: MessageListProps) {
     <div className="relative flex-1 overflow-hidden">
       <ScrollArea className="h-full" viewportRef={viewportRef}>
         <div className="py-4">
+          {/* 工作目录提示条 */}
+          {workingDir && (
+            <div className="flex items-center gap-2 px-4 py-2 mb-2 mx-4 rounded-md bg-muted/50 text-muted-foreground text-xs">
+              <FolderOpen className="h-3.5 w-3.5 flex-shrink-0" />
+              <span className="truncate" title={workingDir}>工作目录: {workingDir}</span>
+            </div>
+          )}
           {messages.map((message) => (
             <MessageItem key={message.id} message={message} />
           ))}

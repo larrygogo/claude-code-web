@@ -1,10 +1,8 @@
 import { createApp } from './app.js';
-import { config, validateConfig } from './config.js';
+import { config } from './config.js';
 import { connectDatabase, disconnectDatabase } from './storage/Database.js';
 
 async function main(): Promise<void> {
-  validateConfig();
-
   await connectDatabase();
 
   const app = createApp();

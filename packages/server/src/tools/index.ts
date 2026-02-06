@@ -52,8 +52,8 @@ export type ToolName =
 /**
  * 获取工具被禁用时的友好提示
  */
-function getDisabledToolMessage(toolName: string): string {
-  const mode = getOperationMode();
+async function getDisabledToolMessage(toolName: string): Promise<string> {
+  const mode = await getOperationMode();
   const messages: Record<string, string> = {
     Write: '文件写入功能已禁用。当前系统运行在受限模式下，不允许创建或修改文件。',
     Edit: '文件编辑功能已禁用。当前系统运行在受限模式下，不允许修改文件内容。',
@@ -78,11 +78,12 @@ export async function executeTool(
   console.log(`[Tools] Input:`, JSON.stringify(input, null, 2));
   console.log(`[Tools] Working directory: ${workingDir}`);
 
-  // 检查工具是否启用
-  if (!isToolEnabled(name)) {
+  // 检查工具是否启用（从数据库读取）
+  const enabled = await isToolEnabled(name);
+  if (!enabled) {
     console.log(`[Tools] Tool ${name} is disabled in current operation mode`);
     return {
-      content: getDisabledToolMessage(name),
+      content: await getDisabledToolMessage(name),
       isError: true,
     };
   }

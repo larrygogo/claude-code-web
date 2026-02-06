@@ -6,12 +6,6 @@ import { authMiddleware, requireUser } from '../middleware/auth.js';
 
 const router: RouterType = Router();
 
-const registerSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  username: z.string().min(2, 'Username must be at least 2 characters'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-});
-
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(1, 'Password is required'),
@@ -19,16 +13,6 @@ const loginSchema = z.object({
 
 const refreshSchema = z.object({
   refreshToken: z.string().min(1, 'Refresh token is required'),
-});
-
-router.post('/register', async (req, res: { json: (data: ApiResponse<AuthResponse>) => void }, next) => {
-  try {
-    const input = registerSchema.parse(req.body);
-    const result = await authService.register(input);
-    res.json({ success: true, data: result });
-  } catch (error) {
-    next(error);
-  }
 });
 
 router.post('/login', async (req, res: { json: (data: ApiResponse<AuthResponse>) => void }, next) => {

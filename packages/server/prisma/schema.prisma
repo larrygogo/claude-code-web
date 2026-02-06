@@ -100,7 +100,7 @@ model RefreshToken {
 model ModelConfig {
   id          String   @id @default(uuid())
   name        String   @unique              // 显示名称
-  provider    String                        // anthropic | openai | custom
+  provider    String                        // anthropic
   modelId     String                        // 实际模型 ID
   apiEndpoint String                        // API 端点
   apiKey      String                        // 加密存储
@@ -163,4 +163,17 @@ model McpServer {
   @@unique([userId, name])
   @@index([userId])
   @@map("mcp_servers")
+}
+
+model SystemSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique          // 配置键名
+  value     String                    // 配置值（敏感数据加密存储）
+  category  String   @default("general")  // 分类: general, features, cors
+  isSecret  Boolean  @default(false)  // 是否需加密
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@map("system_settings")
 }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -71,12 +71,6 @@ export default function LoginPage() {
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               登录
             </Button>
-            <p className="text-sm text-muted-foreground text-center">
-              还没有账号？{' '}
-              <Link to="/register" className="text-primary hover:underline">
-                立即注册
-              </Link>
-            </p>
           </CardFooter>
         </form>
       </Card>
