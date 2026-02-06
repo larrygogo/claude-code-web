@@ -11,7 +11,7 @@ import {
   SSEDone,
   ChatRequest,
 } from '@claude-web/shared';
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 // 按会话管理 AbortController，支持多会话并发
 const abortControllers = new Map<string, AbortController>();

@@ -26,6 +26,7 @@ import { projectService } from './ProjectService.js';
 import { adminService } from './AdminService.js';
 import { rulesService } from './RulesService.js';
 import { mcpService } from './McpService.js';
+import os from 'os';
 import { executeTool, getToolDefinitions } from '../tools/index.js';
 import type { ToolDefinition } from '../tools/definitions.js';
 
@@ -126,8 +127,8 @@ export class AgentService {
     const messageId = uuidv4();
     const abortController = new AbortController();
 
-    // 获取工作目录
-    let workingDir = process.cwd();
+    // 获取工作目录：有项目用项目路径，否则用用户主目录
+    let workingDir = os.homedir();
     if (request.projectId) {
       try {
         const project = await projectService.getProject(userId, request.projectId);
@@ -135,7 +136,7 @@ export class AgentService {
           workingDir = project.path;
         }
       } catch {
-        console.warn('[AgentService] Could not get project path, using cwd');
+        console.warn('[AgentService] Could not get project path, using homedir');
       }
     }
 

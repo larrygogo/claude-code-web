@@ -2,6 +2,9 @@ import dotenv from 'dotenv';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // 设置环境变量默认值（在 dotenv 之前，允许 .env 覆盖）
 const DEFAULT_DATABASE_URL = 'file:./data/db/claude-web.db';
@@ -9,10 +12,12 @@ if (!process.env.DATABASE_URL) {
   process.env.DATABASE_URL = DEFAULT_DATABASE_URL;
 }
 
-dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
 const nodeEnv = process.env.NODE_ENV || 'development';
-const dataDir = process.env.DATA_DIR || './data/claude-web';
+// 用 __dirname 解析相对路径，确保不受 process.cwd() 影响
+const rawDataDir = process.env.DATA_DIR || './data/claude-web';
+const dataDir = path.isAbsolute(rawDataDir) ? rawDataDir : path.resolve(__dirname, '../../..', rawDataDir);
 
 /**
  * 获取 JWT 密钥

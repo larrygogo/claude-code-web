@@ -2,6 +2,9 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 import { config } from './config.js';
 import { errorHandler, notFoundHandler } from './middleware/error.js';
 import { systemSettingService } from './services/SystemSettingService.js';
@@ -88,7 +91,8 @@ export function createApp(): express.Application {
   app.use('/api/config', configRouter);
 
   // 生产环境：托管前端静态文件
-  const clientDistPath = path.resolve(process.cwd(), '../../packages/client/dist');
+  // __dirname 编译后为 packages/server/dist，向上两级到 packages/client/dist
+  const clientDistPath = path.resolve(__dirname, '../../client/dist');
   if (config.nodeEnv === 'production' && fs.existsSync(clientDistPath)) {
     app.use(express.static(clientDistPath, { index: false }));
 

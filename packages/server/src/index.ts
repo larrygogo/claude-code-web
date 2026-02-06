@@ -7,8 +7,9 @@ async function main(): Promise<void> {
 
   const app = createApp();
 
-  const server = app.listen(config.port, () => {
-    console.log(`Server running on http://localhost:${config.port}`);
+  const host = '0.0.0.0';
+  const server = app.listen(config.port, host, () => {
+    console.log(`Server running on http://${host}:${config.port}`);
     console.log(`Environment: ${config.nodeEnv}`);
   });
 
@@ -17,7 +18,10 @@ async function main(): Promise<void> {
   server.keepAliveTimeout = 600000;
   server.headersTimeout = 610000;
 
+  let shuttingDown = false;
   const shutdown = async (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
     console.log(`\n${signal} received. Shutting down gracefully...`);
 
     server.close(async () => {

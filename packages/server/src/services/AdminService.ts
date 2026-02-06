@@ -41,11 +41,16 @@ function decryptApiKey(encryptedKey: string): string {
   if (!ivHex || !encrypted) {
     return encryptedKey; // 可能是未加密的旧数据
   }
-  const iv = Buffer.from(ivHex, 'hex');
-  const decipher = crypto.createDecipheriv('aes-256-cbc', ENCRYPTION_KEY, iv);
-  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
-  return decrypted;
+  try {
+    const iv = Buffer.from(ivHex, 'hex');
+    const decipher = crypto.createDecipheriv('aes-256-cbc', ENCRYPTION_KEY, iv);
+    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  } catch (err) {
+    console.error('[AdminService] API Key 解密失败，密钥可能已变更:', err instanceof Error ? err.message : err);
+    return encryptedKey;
+  }
 }
 
 export class AdminService {
